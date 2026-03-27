@@ -241,13 +241,12 @@ def track():
         tab_info = get_browser_tab(app_info['bundle_id'])
 
     payload = {
-        'user_id': USER_ID,
-        'event_type': 'app_active',
-        'app_name': app_info['app_name'],
-        'bundle_id': app_info['bundle_id'],
-        'tab_title': tab_info['tab_title'],
-        'tab_url': tab_info['tab_url'],
-        'is_idle': idle,
+        'user_id':    USER_ID,
+        'app_name':   app_info['app_name'],
+        'bundle_id':  app_info['bundle_id'],
+        'tab_title':  tab_info['tab_title'],
+        'tab_url':    tab_info['tab_url'],
+        'is_idle':    idle,
         'session_id': SESSION_ID,
         'recorded_at': datetime.now(timezone.utc).isoformat(),
     }
