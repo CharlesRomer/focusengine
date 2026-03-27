@@ -22,10 +22,11 @@ import schedule
 CONFIG_DIR = Path.home() / '.compass'
 CONFIG_FILE = CONFIG_DIR / 'config.json'
 DB_FILE = CONFIG_DIR / 'events.db'
-SUPABASE_URL = None
-USER_TOKEN = None
-USER_ID = None
-SESSION_ID = None  # set externally when focus session is active
+SUPABASE_URL  = None
+ANON_KEY      = None  # Supabase anon key — used for API auth
+AGENT_TOKEN   = None  # agent_token from users table — sent as x-agent-token header
+USER_ID       = None
+SESSION_ID    = None  # polled from users.active_session_id
 
 IDLE_THRESHOLD_SECONDS = 300  # 5 minutes
 SESSION_POLL_INTERVAL  = 30   # seconds between active_session_id polls
@@ -95,24 +96,26 @@ def _increment_attempts(row_id: str):
 
 # ── Config loading ────────────────────────────────────────────────
 def load_config():
-    global SUPABASE_URL, USER_TOKEN, USER_ID
+    global SUPABASE_URL, ANON_KEY, AGENT_TOKEN, USER_ID
     if not CONFIG_FILE.exists():
         return False
     with open(CONFIG_FILE) as f:
         config = json.load(f)
     SUPABASE_URL = config.get('supabase_url')
-    USER_TOKEN = config.get('token')
-    USER_ID = config.get('user_id')
-    return bool(SUPABASE_URL and USER_TOKEN and USER_ID)
+    ANON_KEY     = config.get('anon_key')
+    AGENT_TOKEN  = config.get('token')
+    USER_ID      = config.get('user_id')
+    return bool(SUPABASE_URL and ANON_KEY and AGENT_TOKEN and USER_ID)
 
 def _auth_headers():
-    if not USER_TOKEN or not SUPABASE_URL:
+    if not ANON_KEY or not AGENT_TOKEN:
         return None
     return {
-        'apikey': USER_TOKEN,
-        'Authorization': f'Bearer {USER_TOKEN}',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
+        'apikey':        ANON_KEY,
+        'Authorization': f'Bearer {ANON_KEY}',
+        'x-agent-token': AGENT_TOKEN,
+        'Content-Type':  'application/json',
+        'Prefer':        'return=minimal',
     }
 
 # ── Active session polling ────────────────────────────────────────
