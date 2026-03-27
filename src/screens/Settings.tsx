@@ -258,7 +258,7 @@ export function SettingsScreen() {
                         fontFamily: 'monospace',
                         overflowX: 'auto',
                       }}>
-                        {'curl -sSL https://compass.goshen.app/install-agent.sh | bash'}
+                        {'curl -sSL https://focusengine.vercel.app/install-agent.sh | bash'}
                       </pre>
                     )}
                   </li>

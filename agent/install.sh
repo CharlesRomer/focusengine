@@ -2,7 +2,7 @@
 set -e
 
 COMPASS_DIR="$HOME/.compass"
-TRACKER_URL="https://compass.goshen.app/tracker.py"
+TRACKER_URL="https://focusengine.vercel.app/tracker.py"
 PLIST_LABEL="com.compass.tracker"
 PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
 
@@ -70,4 +70,4 @@ echo "✓ Agent installed and started"
 echo ""
 echo "Next step: Open Compass > Settings > Agent to copy your session token."
 echo "Opening Compass now..."
-open "https://compass.goshen.app/settings"
+open "https://focusengine.vercel.app/settings"
