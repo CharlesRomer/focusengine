@@ -1,0 +1,75 @@
+# Compass — Tasks
+
+## In Progress
+- [ ] Verify proof upload to Supabase Storage works end-to-end
+
+## Backlog
+
+### Phase 3 — Calendar View
+- [ ] Day view: 6am–10pm timeline, 30-min slots
+- [ ] Activity blocks: color-coded by category (deep/meeting/comms/offtask/idle)
+- [ ] Focus block creation: click slot → name → drag to resize
+- [ ] Focus block overlay layer on top of activity blocks
+- [ ] Hover tooltip on activity blocks (app name + duration)
+- [ ] Click focus block: edit name, tag to project, delete
+- [ ] Week view: 7-col grid + summary row (focus hrs, meeting hrs, deep %, switches)
+- [ ] Month view: calendar grid + focus score dot per day
+- [ ] Click day col header → jumps to day view
+- [ ] Empty/loading states for all calendar views
+- [ ] Wire CalendarDay into Today screen right panel
+
+### Phase 4 — Focus Sessions
+- [ ] Start session (from Today, from Calendar block, ⌘⇧F)
+- [ ] Persistent 48px top bar with live timer
+- [ ] Pause / Resume (⌘⇧P)
+- [ ] End session modal — output note required
+- [ ] Session restore on page refresh (check for active session on load)
+- [ ] Quick capture during session (⌘K popover)
+- [ ] Focus score calculated on end
+
+### Phase 5 — Activity Tracking Integration
+- [x] Block picker in StartSessionModal (today's unlinked focus_blocks)
+- [x] macOS agent polls active_session_id every 30s (agent/tracker.py)
+- [x] Edge Functions: categorize-events + daily-summary
+- [x] users.active_session_id — written on session start, cleared on end
+- [x] Calendar activity events hover tooltip (app name, category, duration)
+- [x] Live + final focus score uses real activity_events data
+- [x] Settings > Agent page (status, token, install steps, test connection)
+- [ ] Supabase manual steps: run migration 002, deploy edge functions, webhook + cron (notes.md)
+
+### Phase 6 — Team Pulse
+- [ ] Live status strip (Realtime subscription)
+- [ ] Team commitments view (grouped by person)
+- [ ] Weekly execution rate + 7-day sparkline
+
+### Phase 7 — Reports
+- [ ] Personal: donut chart (time breakdown)
+- [ ] Personal: focus heatmap (day × hour)
+- [ ] Personal: focus score trend line (30 days)
+- [ ] Personal: context switching bar chart
+- [ ] Admin table (sortable, per-member stats)
+- [ ] AI anomaly panel (Claude API, on-demand)
+- [ ] Friday digest (Edge Function cron + Slack webhook)
+
+### Phase 8 — Polish
+- [ ] Settings screen (profile, team, agent, integrations, danger)
+- [ ] All keyboard shortcuts verified
+- [ ] Error boundary on every screen
+- [ ] Min-width 1024px guard
+
+## Blocked
+- Proof image upload: needs `proof-uploads` storage bucket created in Supabase dashboard
+
+## Done
+- [x] Supabase schema: all tables, RLS, indexes (migration 001)
+- [x] Auth: sign up, sign in, sign out
+- [x] Onboarding: 4-step flow (email → name → team create/join)
+- [x] Auth persists across page refresh (Zustand persist)
+- [x] App shell: sidebar nav, routing, design system tokens
+- [x] Today screen layout (left panel + right placeholder)
+- [x] Commitments: add (up to 3), mark done + proof upload, mark incomplete + reason
+- [x] Optimistic UI for commitment status changes with rollback
+- [x] Quick capture: type + Enter, timestamped list, ⌘K focus
+- [x] cc-yolo launcher, Claude hooks, planning files
+- [x] Fix: team_org_id null guard on commitment creation
+- [x] Fix: users without team routed back to team setup step

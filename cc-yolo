@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Repo-local Claude Code launcher with all permissions bypassed.
+# Use for trusted, fast iteration in this repo only.
+# Do NOT commit this to a shared remote as a blanket policy.
+claude --dangerously-skip-permissions "$@"
