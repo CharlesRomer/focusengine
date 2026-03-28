@@ -284,13 +284,21 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
     enabled: gcalEnabled,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      const off  = new Date().getTimezoneOffset()
+      const sign = off <= 0 ? '+' : '-'
+      const abs  = Math.abs(off)
+      const tz   = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`
       const { data, error } = await supabase.functions.invoke('get-calendar-events', {
         body: {
-          date_min: `${dateRange.start}T00:00:00Z`,
-          date_max: `${dateRange.end}T23:59:59Z`,
+          date_min: `${dateRange.start}T00:00:00${tz}`,
+          date_max: `${dateRange.end}T23:59:59${tz}`,
         },
       })
-      if (error) throw error
+      if (error) {
+        console.error('[FocusCalendar] gcal fetch error', error)
+        toast('Could not load Google Calendar events', 'error')
+        return [] as GCalEvent[]
+      }
       return (data ?? []) as GCalEvent[]
     },
   })

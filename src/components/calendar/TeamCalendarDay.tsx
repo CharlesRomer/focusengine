@@ -238,10 +238,10 @@ function MemberTimeline({ focusBlocks, busyTimes, activeSession, memberName }: M
         }} />
       ))}
 
-      {/* Busy blocks from GCal freebusy */}
+      {/* Busy blocks from GCal freebusy — timestamps are UTC, convert to local */}
       {busyTimes.map((b, i) => {
-        const startTime = b.start.includes('T') ? extractTime(b.start) : '00:00'
-        const endTime   = b.end.includes('T')   ? extractTime(b.end)   : '00:00'
+        const startTime = b.start ? format(new Date(b.start), 'HH:mm') : '00:00'
+        const endTime   = b.end   ? format(new Date(b.end),   'HH:mm') : '00:00'
         const top    = timeToPx(startTime)
         const height = durationToPx(startTime, endTime)
         if (top < 0 || top > TIMELINE_HEIGHT) return null
@@ -266,9 +266,9 @@ function MemberTimeline({ focusBlocks, busyTimes, activeSession, memberName }: M
         )
       })}
 
-      {/* Active session */}
+      {/* Active session — started_at is UTC, convert to local */}
       {activeSession && (() => {
-        const startTime = extractTime(activeSession.started_at)
+        const startTime = format(new Date(activeSession.started_at), 'HH:mm')
         const nowTime   = format(now, 'HH:mm')
         const top    = timeToPx(startTime)
         const height = durationToPx(startTime, nowTime)
@@ -419,10 +419,18 @@ export function TeamCalendarDay({ date }: TeamCalendarDayProps) {
     enabled: !!user?.team_org_id,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      const off  = new Date().getTimezoneOffset()
+      const sign = off <= 0 ? '+' : '-'
+      const abs  = Math.abs(off)
+      const tz   = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`
       const { data, error } = await supabase.functions.invoke('get-team-busy-times', {
-        body: { date: dateStr },
+        body: { date_min: `${dateStr}T00:00:00${tz}`, date_max: `${dateStr}T23:59:59${tz}` },
       })
-      if (error) { console.error('[TeamCalendarDay] busy times', error); return {} }
+      if (error) {
+        console.error('[TeamCalendarDay] busy times', error)
+        toast('Could not load team calendar', 'error')
+        return {}
+      }
       return data ?? {}
     },
   })
@@ -451,10 +459,19 @@ export function TeamCalendarDay({ date }: TeamCalendarDayProps) {
     enabled: gcalEnabled,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      // Use local timezone offset so we query the full local day, not the UTC day
+      const off  = new Date().getTimezoneOffset()
+      const sign = off <= 0 ? '+' : '-'
+      const abs  = Math.abs(off)
+      const tz   = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`
       const { data, error } = await supabase.functions.invoke('get-calendar-events', {
-        body: { date_min: `${dateStr}T00:00:00Z`, date_max: `${dateStr}T23:59:59Z` },
+        body: { date_min: `${dateStr}T00:00:00${tz}`, date_max: `${dateStr}T23:59:59${tz}` },
       })
-      if (error) throw error
+      if (error) {
+        console.error('[TeamCalendarDay] gcal fetch error', error)
+        toast('Could not load Google Calendar events', 'error')
+        return []
+      }
       return data ?? []
     },
   })
@@ -662,7 +679,6 @@ export function TeamCalendarDay({ date }: TeamCalendarDayProps) {
                 flex: 1,
                 minWidth: 180,
                 borderRight: idx < orderedMembers.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                overflow: 'hidden',
                 flexShrink: 0,
               }}
             >

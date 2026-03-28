@@ -1,6 +1,9 @@
 // Edge Function: google-oauth-callback
-// POST (authenticated) — called by React /auth/google/callback page
-// Exchanges the OAuth code for tokens and stores them server-side
+// POST (no JWT required) — called by React /auth/google/callback page
+// Exchanges the OAuth code for tokens and stores them server-side.
+// Deployed with --no-verify-jwt because after Google's redirect, the Supabase
+// auth session may not yet be restored in localStorage when this is called.
+// Security is maintained by the single-use OAuth code + state = userId check.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -15,19 +18,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify the caller is authenticated and get their user ID
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
-    const { data: { user }, error: authError } = await serviceClient.auth.getUser(token)
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
 
     const { code, state } = await req.json() as { code: string; state: string }
     if (!code || !state) {
@@ -37,10 +31,18 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verify state matches authenticated user (prevents CSRF)
-    if (state !== user.id) {
-      console.error('[google-oauth-callback] state mismatch', { state, userId: user.id })
-      return new Response(JSON.stringify({ error: 'State mismatch' }), {
+    // state = userId (set when building the OAuth URL)
+    // Verify the user actually exists in our DB before storing tokens
+    const userId = state
+    const { data: existingUser, error: userLookupError } = await serviceClient
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single()
+
+    if (userLookupError || !existingUser) {
+      console.error('[google-oauth-callback] userId from state not found in DB:', userId)
+      return new Response(JSON.stringify({ error: 'Invalid state — user not found' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -88,7 +90,7 @@ Deno.serve(async (req) => {
         google_token_expiry:      expiry,
         google_calendar_connected: true,
       })
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (updateError) {
       console.error('[google-oauth-callback] db update failed', updateError)

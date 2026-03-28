@@ -81,7 +81,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { date } = await req.json() as { date: string }
+    const { date_min, date_max } = await req.json() as { date_min: string; date_max: string }
+
+    if (!date_min || !date_max) {
+      return new Response(JSON.stringify({ error: 'Missing date_min or date_max' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // Fetch all OTHER connected team members
     const { data: members } = await serviceClient
@@ -97,8 +104,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    const timeMin = `${date}T00:00:00Z`
-    const timeMax = `${date}T23:59:59Z`
+    const timeMin = date_min
+    const timeMax = date_max
 
     const result: Record<string, Array<{ start: string; end: string }>> = {}
 
