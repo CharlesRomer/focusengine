@@ -9,12 +9,10 @@ import type {
   EventChangeArg,
   DatesSetArg,
   EventContentArg,
-  EventHoveringArg,
 } from '@fullcalendar/core'
 import type { DropArg } from '@fullcalendar/interaction'
 import { format } from 'date-fns'
 import { useFocusBlocksRange } from '@/hooks/useFocusBlocks'
-import { useActivityEventsRange } from '@/hooks/useActivity'
 import { useCommitments } from '@/hooks/useCommitments'
 import { useAuthStore } from '@/store/auth'
 import { useSessionStore } from '@/store/session'
@@ -23,17 +21,6 @@ import { supabase } from '@/lib/supabase'
 import type { DBFocusSession } from '@/lib/supabase'
 import { todayLocal } from '@/lib/time'
 import { toast } from '@/store/ui'
-// ── App color hash ─────────────────────────────────────────────────
-const APP_COLORS = [
-  '#4f8ef7', '#7c6af7', '#e06b6b', '#55c9a0', '#e0a84b',
-  '#5fc4d0', '#c96be0', '#7acc55', '#e07b4b', '#6b9de0',
-]
-function appColor(appName: string | null): string {
-  if (!appName) return '#888'
-  let h = 0
-  for (let i = 0; i < appName.length; i++) h = (h * 31 + appName.charCodeAt(i)) >>> 0
-  return APP_COLORS[h % APP_COLORS.length]
-}
 
 // ── Helpers ───────────────────────────────────────────────────────
 function addMinutesToTime(timeStr: string, mins: number): string {
@@ -113,7 +100,6 @@ function BlockEditPopover({
         boxShadow: 'var(--shadow-lg)',
       }}
     >
-      {/* Name input */}
       <input
         ref={inputRef}
         value={name}
@@ -132,11 +118,9 @@ function BlockEditPopover({
           fontFamily: 'var(--font-sans)',
         }}
       />
-      {/* Time label */}
       <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 10 }}>
         {state.timeLabel}
       </div>
-      {/* Action buttons */}
       <div style={{ display: 'flex', gap: 6 }}>
         <button
           onClick={hasActiveSession ? undefined : onStartSession}
@@ -228,20 +212,12 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
 
   const [dateRange, setDateRange] = useState({ start: todayLocal(), end: todayLocal() })
 
-  const { data: focusBlocks    = [] } = useFocusBlocksRange(dateRange.start, dateRange.end)
-  const { data: activityEvents = [] } = useActivityEventsRange(dateRange.start, dateRange.end)
+  const { data: focusBlocks = [] } = useFocusBlocksRange(dateRange.start, dateRange.end)
 
-  // Focus block popover
   const [popover,      setPopover]     = useState<PopoverState | null>(null)
   const [popoverName,  setPopoverName] = useState('')
   const popoverRef     = useRef<HTMLDivElement>(null)
   const popoverNameRef = useRef('')
-
-  // Activity hover tooltip
-  const [activityTooltip, setActivityTooltip] = useState<{
-    x: number; y: number
-    appName: string | null; tabTitle: string | null; durationSecs: number | null
-  } | null>(null)
 
   const calendarRef = useRef<FullCalendar>(null)
 
@@ -300,7 +276,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
   async function handleStartSession() {
     if (!user || !popover) return
 
-    // Check for existing active/paused session first
     const { data: existing } = await supabase
       .from('focus_sessions')
       .select('id')
@@ -316,7 +291,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
     }
 
     const sessionName = popoverNameRef.current.trim() || 'Focus block'
-    // Let Supabase set started_at via DEFAULT now() — do not set it client-side
     const { data, error } = await supabase
       .from('focus_sessions')
       .insert({
@@ -336,26 +310,12 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
       .update({ session_id: data.id })
       .eq('id', popover.blockId)
 
-    // Write active_session_id to user record (for macOS agent)
     void supabase.from('users').update({ active_session_id: data.id }).eq('id', user.id)
 
     setActive(data as DBFocusSession)
     qc.invalidateQueries({ queryKey: ['focus_blocks'] })
     toast('Session started — stay focused', 'success')
     setPopover(null)
-  }
-
-  // ── Activity event hover tooltip ─────────────────────────────
-  function handleEventMouseEnter(info: EventHoveringArg) {
-    if (!info.event.id.startsWith('activity-')) return
-    const { appName, tabTitle, durationSecs } = info.event.extendedProps
-    const rect = info.el.getBoundingClientRect()
-    setActivityTooltip({ x: rect.right + 8, y: rect.top, appName, tabTitle, durationSecs })
-  }
-
-  function handleEventMouseLeave(info: EventHoveringArg) {
-    if (!info.event.id.startsWith('activity-')) return
-    setActivityTooltip(null)
   }
 
   // ── Popover open/close ───────────────────────────────────────
@@ -397,7 +357,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
 
     if (error) { toast('Could not create block', 'error'); return }
 
-    // Auto-create commitment if today and under limit
     const isToday = date === todayLocal()
     if (isToday) {
       const active = (commitments ?? []).filter(c => !c.deleted_at)
@@ -429,7 +388,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
 
   // ── handleEventClick — open popover ─────────────────────────
   function handleEventClick(info: EventClickArg) {
-    if (info.event.id.startsWith('activity-')) return
     const { start, end } = info.event
     const startStr = start ? format(start, 'HH:mm') : '00:00'
     const endStr   = end   ? format(end,   'HH:mm') : '00:00'
@@ -439,7 +397,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
 
   // ── handleEventChange — drag / resize ───────────────────────
   async function handleEventChange(info: EventChangeArg) {
-    if (info.event.id.startsWith('activity-')) return
     const { error } = await supabase
       .from('focus_blocks')
       .update({
@@ -479,7 +436,7 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
     else qc.invalidateQueries({ queryKey: ['focus_blocks'] })
   }
 
-  // ── Build event arrays (deduplicated) ───────────────────────
+  // ── Build calendar events ────────────────────────────────────
   const seenIds = new Set<string>()
   const calendarEvents = focusBlocks
     .filter(b => { if (seenIds.has(b.id)) return false; seenIds.add(b.id); return true })
@@ -493,40 +450,8 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
       extendedProps:   { commitmentId: b.commitment_id, horizonTag: b.horizon_tag, sessionId: b.session_id },
     }))
 
-  const bgEvents = activityEvents.map(ev => ({
-    id:              `activity-${ev.id}`,
-    start:           ev.started_at,
-    end:             ev.ended_at ?? ev.started_at,
-    display:         'background' as const,
-    backgroundColor: appColor(ev.app_name),
-    editable:        false,
-    extendedProps:   {
-      appName:      ev.app_name,
-      tabTitle:     ev.tab_title,
-      durationSecs: ev.duration_seconds,
-    },
-  }))
-
-  const noActivity = activityEvents.length === 0
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-      {/* No-activity info bar */}
-      {noActivity && (
-        <div style={{
-          flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          padding: '5px 16px',
-          background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border-subtle)',
-          fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)',
-        }}>
-          <span>No activity tracked — install the macOS agent in Settings to start tracking</span>
-        </div>
-      )}
-
-      {/* FullCalendar */}
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <FullCalendar
           ref={calendarRef}
@@ -551,14 +476,12 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
           nowIndicator={true}
           height="100%"
           expandRows={true}
-          events={[...calendarEvents, ...bgEvents]}
+          events={calendarEvents}
           eventContent={renderEventContent}
           datesSet={handleDatesSet}
           select={handleSelect}
           eventClick={handleEventClick}
           eventChange={handleEventChange}
-          eventMouseEnter={handleEventMouseEnter}
-          eventMouseLeave={handleEventMouseLeave}
           drop={handleExternalDrop}
           viewDidMount={(info) => {
             if (info.view.type.startsWith('timeGrid')) {
@@ -572,7 +495,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
         />
       </div>
 
-      {/* Block edit popover */}
       {popover && (
         <BlockEditPopover
           state={popover}
@@ -585,44 +507,6 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
           popoverRef={popoverRef}
         />
       )}
-
-      {/* Activity event hover tooltip */}
-      {activityTooltip && (() => {
-        const { x, y, appName, tabTitle, durationSecs } = activityTooltip
-        const vw   = window.innerWidth
-        const W    = 220
-        const left = x + W > vw - 8 ? x - W - 16 : x
-        const secs = durationSecs ?? 0
-        const mins = secs >= 60 ? `${Math.round(secs / 60)}m` : `${secs}s`
-        return (
-          <div
-            style={{
-              position: 'fixed', left: Math.max(8, left), top: Math.max(8, y),
-              width: W, zIndex: 900, pointerEvents: 'none',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 8, padding: '8px 10px',
-              boxShadow: 'var(--shadow-md)',
-            }}
-          >
-            {appName && (
-              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {appName}
-              </div>
-            )}
-            {tabTitle && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {tabTitle}
-              </div>
-            )}
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {mins}
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }
