@@ -1,0 +1,3 @@
+{
+  "rewrites": [{ "source": "/((?!CompassTracker.zip).*)", "destination": "/index.html" }]
+}
