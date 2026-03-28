@@ -1,0 +1,279 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		29B9732CFDCFA39411CA2CEA /* CompassTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97321FDCFA39411CA2CEA /* CompassTrackerApp.swift */; };
+		29B9732DFDCFA39411CA2CEA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97322FDCFA39411CA2CEA /* AppDelegate.swift */; };
+		29B9732EFDCFA39411CA2CEA /* TrackerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97323FDCFA39411CA2CEA /* TrackerEngine.swift */; };
+		29B9732FFDCFA39411CA2CEA /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97324FDCFA39411CA2CEA /* SupabaseClient.swift */; };
+		29B97330FDCFA39411CA2CEA /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97325FDCFA39411CA2CEA /* KeychainHelper.swift */; };
+		29B97331FDCFA39411CA2CEA /* BrowserHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97326FDCFA39411CA2CEA /* BrowserHelper.swift */; };
+		29B97332FDCFA39411CA2CEA /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B97327FDCFA39411CA2CEA /* SetupView.swift */; };
+		29B97333FDCFA39411CA2CEA /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 29B9732AFDCFA39411CA2CEA /* ServiceManagement.framework */; };
+		29B97334FDCFA39411CA2CEA /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 29B9732BFDCFA39411CA2CEA /* Security.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		29B97320FDCFA39411CA2CEA /* CompassTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CompassTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		29B97321FDCFA39411CA2CEA /* CompassTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassTrackerApp.swift; sourceTree = "<group>"; };
+		29B97322FDCFA39411CA2CEA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		29B97323FDCFA39411CA2CEA /* TrackerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerEngine.swift; sourceTree = "<group>"; };
+		29B97324FDCFA39411CA2CEA /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
+		29B97325FDCFA39411CA2CEA /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		29B97326FDCFA39411CA2CEA /* BrowserHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserHelper.swift; sourceTree = "<group>"; };
+		29B97327FDCFA39411CA2CEA /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		29B97328FDCFA39411CA2CEA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		29B97329FDCFA39411CA2CEA /* CompassTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CompassTracker.entitlements; sourceTree = "<group>"; };
+		29B9732AFDCFA39411CA2CEA /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+		29B9732BFDCFA39411CA2CEA /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		29B97318FDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29B97333FDCFA39411CA2CEA /* ServiceManagement.framework in Frameworks */,
+				29B97334FDCFA39411CA2CEA /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		29B97315FDCFA39411CA2CEA = {
+			isa = PBXGroup;
+			children = (
+				29B97321FDCFA39411CA2CEA /* CompassTrackerApp.swift */,
+				29B97322FDCFA39411CA2CEA /* AppDelegate.swift */,
+				29B97323FDCFA39411CA2CEA /* TrackerEngine.swift */,
+				29B97324FDCFA39411CA2CEA /* SupabaseClient.swift */,
+				29B97325FDCFA39411CA2CEA /* KeychainHelper.swift */,
+				29B97326FDCFA39411CA2CEA /* BrowserHelper.swift */,
+				29B97327FDCFA39411CA2CEA /* SetupView.swift */,
+				29B97328FDCFA39411CA2CEA /* Info.plist */,
+				29B97329FDCFA39411CA2CEA /* CompassTracker.entitlements */,
+				29B97335FDCFA39411CA2CEA /* Frameworks */,
+				29B97316FDCFA39411CA2CEA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		29B97316FDCFA39411CA2CEA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				29B97320FDCFA39411CA2CEA /* CompassTracker.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		29B97335FDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				29B9732AFDCFA39411CA2CEA /* ServiceManagement.framework */,
+				29B9732BFDCFA39411CA2CEA /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		29B97314FDCFA39411CA2CEA /* CompassTracker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 29B9731EFDCFA39411CA2CEA /* Build configuration list for PBXNativeTarget "CompassTracker" */;
+			buildPhases = (
+				29B97317FDCFA39411CA2CEA /* Sources */,
+				29B97318FDCFA39411CA2CEA /* Frameworks */,
+				29B97319FDCFA39411CA2CEA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CompassTracker;
+			productName = CompassTracker;
+			productReference = 29B97320FDCFA39411CA2CEA /* CompassTracker.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		29B97313FDCFA39411CA2CEA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					29B97314FDCFA39411CA2CEA = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 29B9731FFDCFA39411CA2CEA /* Build configuration list for PBXProject "CompassTracker" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 29B97315FDCFA39411CA2CEA;
+			productRefGroup = 29B97316FDCFA39411CA2CEA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				29B97314FDCFA39411CA2CEA /* CompassTracker */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		29B97319FDCFA39411CA2CEA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		29B97317FDCFA39411CA2CEA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29B9732CFDCFA39411CA2CEA /* CompassTrackerApp.swift in Sources */,
+				29B9732DFDCFA39411CA2CEA /* AppDelegate.swift in Sources */,
+				29B9732EFDCFA39411CA2CEA /* TrackerEngine.swift in Sources */,
+				29B9732FFDCFA39411CA2CEA /* SupabaseClient.swift in Sources */,
+				29B97330FDCFA39411CA2CEA /* KeychainHelper.swift in Sources */,
+				29B97331FDCFA39411CA2CEA /* BrowserHelper.swift in Sources */,
+				29B97332FDCFA39411CA2CEA /* SetupView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		29B9731AFDCFA39411CA2CEA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CompassTracker.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.compass.tracker";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		29B9731BFDCFA39411CA2CEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CompassTracker.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.compass.tracker";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		29B9731CFDCFA39411CA2CEA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		29B9731DFDCFA39411CA2CEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		29B9731EFDCFA39411CA2CEA /* Build configuration list for PBXNativeTarget "CompassTracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				29B9731AFDCFA39411CA2CEA /* Debug */,
+				29B9731BFDCFA39411CA2CEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		29B9731FFDCFA39411CA2CEA /* Build configuration list for PBXProject "CompassTracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				29B9731CFDCFA39411CA2CEA /* Debug */,
+				29B9731DFDCFA39411CA2CEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 29B97313FDCFA39411CA2CEA /* Project object */;
+}
