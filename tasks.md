@@ -43,13 +43,18 @@
 - [ ] Weekly execution rate + 7-day sparkline
 
 ### Phase 7 — Reports
-- [ ] Personal: donut chart (time breakdown)
-- [ ] Personal: focus heatmap (day × hour)
-- [ ] Personal: focus score trend line (30 days)
-- [ ] Personal: context switching bar chart
-- [ ] Admin table (sortable, per-member stats)
-- [ ] AI anomaly panel (Claude API, on-demand)
-- [ ] Friday digest (Edge Function cron + Slack webhook)
+- [x] Personal: time breakdown donut chart (Recharts PieChart)
+- [x] Personal: focus score trend line (daily avg, reference lines at 50/75)
+- [x] Personal: best focus windows heatmap (deep_work intensity, 30-day fixed, USER_TIMEZONE)
+- [x] Personal: sessions list (expandable, output note, duration, score)
+- [x] Personal: commitments stacked bar + incomplete list
+- [x] Personal: top distractions (off_task + communication by app/domain)
+- [x] Admin team table (sortable by score/sessions/deepWork/execution)
+- [x] AI insights panel (on-demand, calls generate-insights Edge Function)
+- [x] Friday digest (on-demand + saved to weekly_digests table)
+- [x] Migration 007: weekly_digests table with RLS
+- [x] Edge Functions: generate-insights + generate-digest (claude-haiku-4-5)
+- [ ] Deploy Edge Functions + set ANTHROPIC_API_KEY secret (see notes.md)
 
 ### Phase 8 — Polish
 - [ ] Settings screen (profile, team, agent, integrations, danger)

@@ -69,6 +69,24 @@ npm run build        # tsc + vite build — use this to verify no TS errors
 - **Focus score**: `computeFocusScore` returns `null` when no activity_events exist (honest signal). Live score updates every 60s by fetching real activity_events. Final score on end also uses real data.
 - **Block picker flow**: StartSessionModal queries today's unlinked focus_blocks on open. If found, shows card picker first. Selecting a block links `focus_blocks.session_id = session.id` after insert.
 
+## Phase 7 notes
+
+- **weekly_digests RLS**: uses `service_role` for writes — edge functions must use `SUPABASE_SERVICE_ROLE_KEY`, not the anon key, when upserting digests.
+- **generate-insights / generate-digest**: both call `claude-haiku-4-5-20251001`. Requires `ANTHROPIC_API_KEY` set as a Supabase Edge Function secret: `supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`
+- **BestFocusWindowsCard**: always uses 30-day window regardless of page window selector. Heatmap uses `USER_TIMEZONE = 'America/Los_Angeles'` for DOW/hour extraction — change this constant in `src/lib/reports.ts` to adjust.
+- **Team tab**: only visible to admins (`user.role === 'admin'`). Tab not rendered at all for members.
+- **No streaming**: AI calls are non-streaming for simplicity. Response appears all at once after ~2–5s.
+
+### Manual steps to deploy Phase 7
+
+1. Run `supabase/migrations/007_weekly_digests.sql` in SQL Editor
+2. Set Anthropic secret: `supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`
+3. Deploy edge functions:
+   ```bash
+   supabase functions deploy generate-insights
+   supabase functions deploy generate-digest
+   ```
+
 ## Pitfalls to avoid
 
 - Don't use `.select()` after INSERT on tables where the SELECT policy depends on data that hasn't been set yet
