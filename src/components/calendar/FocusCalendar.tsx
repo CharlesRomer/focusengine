@@ -530,8 +530,8 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
           } : false}
           slotDuration="00:15:00"
           slotLabelInterval="01:00:00"
-          slotMinTime="06:00:00"
-          slotMaxTime="22:00:00"
+          slotMinTime="07:00:00"
+          slotMaxTime="24:00:00"
           selectable={true}
           selectMirror={true}
           editable={true}
