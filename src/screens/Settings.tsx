@@ -199,8 +199,14 @@ export function SettingsScreen() {
     setGcalLoading(true)
     const { data, error } = await supabase.functions.invoke('google-oauth-url')
     setGcalLoading(false)
-    if (error || !data?.url) {
-      toast('Could not start Google authorization', 'error')
+    if (error) {
+      console.error('[connectGoogleCalendar] invoke error:', error)
+      toast(`Could not start Google authorization: ${error.message ?? JSON.stringify(error)}`, 'error')
+      return
+    }
+    if (!data?.url) {
+      console.error('[connectGoogleCalendar] no url in response:', data)
+      toast('Could not start Google authorization — no URL returned', 'error')
       return
     }
     window.location.href = data.url
