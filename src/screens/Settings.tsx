@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/store/ui'
+import { format } from 'date-fns'
 
 // ── Agent connection status ───────────────────────────────────────
 
@@ -124,7 +126,10 @@ function fmtRelative(d: Date): string {
 // ── Main component ────────────────────────────────────────────────
 
 export function SettingsScreen() {
-  const user = useAuthStore(s => s.user)
+  const user     = useAuthStore(s => s.user)
+  const setUser  = useAuthStore(s => s.setUser)
+  const signOut  = useAuthStore(s => s.signOut)
+  const navigate = useNavigate()
   const { status, lastPing } = useAgentStatus(user?.id)
   const team = useTeamData(user?.team_org_id ?? null)
 
@@ -132,6 +137,70 @@ export function SettingsScreen() {
   const [tab, setTab]               = useState<'agent' | 'team' | 'profile'>('agent')
   const [testing, setTesting]       = useState(false)
   const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
+
+  // Profile tab state
+  const [displayName,      setDisplayName]      = useState(user?.display_name ?? '')
+  const [savingName,       setSavingName]        = useState(false)
+  const [authEmail,        setAuthEmail]         = useState('')
+  const [showLeaveModal,   setShowLeaveModal]    = useState(false)
+  const [leaveLoading,     setLeaveLoading]      = useState(false)
+
+  // Fetch auth email on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setAuthEmail(data.user.email)
+    })
+  }, [])
+
+  // Keep displayName in sync if user changes
+  useEffect(() => {
+    if (user?.display_name) setDisplayName(user.display_name)
+  }, [user?.display_name])
+
+  async function saveDisplayName() {
+    if (!user) return
+    setSavingName(true)
+    const { error } = await supabase
+      .from('users')
+      .update({ display_name: displayName.trim() })
+      .eq('id', user.id)
+    setSavingName(false)
+    if (error) {
+      toast('Could not update name', 'error')
+    } else {
+      setUser({ ...user, display_name: displayName.trim() })
+      toast('Name updated', 'success')
+    }
+  }
+
+  async function leaveTeam() {
+    if (!user) return
+    // Check if only admin
+    if (user.role === 'admin') {
+      const { data: admins } = await supabase
+        .from('users')
+        .select('id')
+        .eq('team_org_id', user.team_org_id)
+        .eq('role', 'admin')
+      if (admins && admins.length <= 1) {
+        toast("You're the only admin. Transfer admin role to another member before leaving.", 'error')
+        setShowLeaveModal(false)
+        return
+      }
+    }
+    setLeaveLoading(true)
+    const { error } = await supabase
+      .from('users')
+      .update({ team_org_id: null })
+      .eq('id', user.id)
+    setLeaveLoading(false)
+    if (error) {
+      toast('Could not leave team', 'error')
+      return
+    }
+    setUser({ ...user, team_org_id: null })
+    navigate('/')
+  }
 
   useEffect(() => {
     if (!user) return
@@ -387,6 +456,34 @@ export function SettingsScreen() {
               </div>
             </Card>
 
+            {/* Share install link */}
+            <Card>
+              <SectionTitle>Share with teammates</SectionTitle>
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 14, lineHeight: 1.5 }}>
+                Send this page to your teammates so they can install the tracker themselves.
+              </p>
+              <a
+                href="/download"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 6,
+                  color: 'var(--text-secondary)',
+                  fontSize: 12,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Share install link with teammates →
+              </a>
+            </Card>
+
             {/* Troubleshooting */}
             <Card>
               <SectionTitle>Still having trouble?</SectionTitle>
@@ -511,8 +608,220 @@ export function SettingsScreen() {
 
         {/* ── Profile tab ───────────────────────────────────── */}
         {tab === 'profile' && (
-          <div style={{ maxWidth: 400, color: 'var(--text-secondary)', fontSize: 13 }}>
-            <p>Profile settings — Phase 8</p>
+          <div style={{ maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Identity */}
+            <Card>
+              <SectionTitle>Your profile</SectionTitle>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Display name */}
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 6 }}>
+                    Display name
+                  </label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={displayName}
+                      onChange={e => setDisplayName(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 6,
+                        color: 'var(--text-primary)',
+                        fontSize: 13,
+                        fontFamily: 'var(--font-sans)',
+                        outline: 'none',
+                      }}
+                    />
+                    {displayName.trim() !== user?.display_name && displayName.trim().length > 0 && (
+                      <button
+                        onClick={() => void saveDisplayName()}
+                        disabled={savingName}
+                        style={{
+                          padding: '8px 16px',
+                          background: 'var(--accent)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: savingName ? 'wait' : 'pointer',
+                          fontFamily: 'var(--font-sans)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {savingName ? '...' : 'Save'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email — read-only */}
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 6 }}>
+                    Email
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginLeft: 4, verticalAlign: 'middle', opacity: 0.5 }}>
+                      <rect x="1" y="4" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M3 4V3a2 2 0 114 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                  </label>
+                  <input
+                    value={authEmail}
+                    readOnly
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                      color: 'var(--text-secondary)',
+                      fontSize: 13,
+                      fontFamily: 'var(--font-sans)',
+                      opacity: 0.6,
+                      cursor: 'not-allowed',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {/* Team info */}
+            <Card>
+              <SectionTitle>Team</SectionTitle>
+              {team && user ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <InfoRow label="Team name" value={team.name} />
+                  <InfoRow
+                    label="Your role"
+                    value={
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        background: user.role === 'admin' ? 'var(--accent-subtle)' : 'var(--bg-hover)',
+                        border: `1px solid ${user.role === 'admin' ? 'rgba(124,111,224,0.3)' : 'var(--border-subtle)'}`,
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: user.role === 'admin' ? 'var(--accent)' : 'var(--text-secondary)',
+                        textTransform: 'capitalize',
+                      }}>
+                        {user.role}
+                      </span>
+                    }
+                  />
+                  {user.created_at && (
+                    <InfoRow
+                      label="Member since"
+                      value={format(new Date(user.created_at), 'MMMM yyyy')}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div style={{ height: 60, background: 'var(--bg-hover)', borderRadius: 6 }} />
+              )}
+            </Card>
+
+            {/* Danger zone */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              <button
+                onClick={() => setShowLeaveModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: '1px solid var(--danger)',
+                  borderRadius: 8,
+                  color: 'var(--danger)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  textAlign: 'left',
+                }}
+              >
+                Leave team
+              </button>
+
+              <button
+                onClick={() => void signOut()}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 8,
+                  color: 'var(--text-secondary)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  textAlign: 'left',
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Leave team confirmation modal ──────────────────── */}
+        {showLeaveModal && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            onClick={() => setShowLeaveModal(false)}
+          >
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 16,
+                padding: 28,
+                width: 400,
+                maxWidth: 'calc(100vw - 32px)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Leave {team?.name ?? 'team'}?
+              </h3>
+              <p style={{ margin: '0 0 24px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                You will lose access to all team data. This cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowLeaveModal(false)}
+                  style={{
+                    padding: '8px 16px', background: 'none',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 6, color: 'var(--text-secondary)',
+                    fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void leaveTeam()}
+                  disabled={leaveLoading}
+                  style={{
+                    padding: '8px 16px', background: 'var(--danger)',
+                    border: 'none', borderRadius: 6, color: '#fff',
+                    fontSize: 13, fontWeight: 500,
+                    cursor: leaveLoading ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {leaveLoading ? '...' : 'Leave team'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -540,6 +849,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 14 }}>
       {children}
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{label}</span>
+      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{value}</span>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { NavItem } from '@/components/ui/NavItem'
 import { Avatar } from '@/components/shared/Avatar'
 import { useAuthStore } from '@/store/auth'
+import { useSessionStore } from '@/store/session'
 
 // Simple SVG icons inline
 const icons = {
@@ -12,8 +13,9 @@ const icons = {
 }
 
 export function Sidebar() {
-  const user = useAuthStore(s => s.user)
-  const signOut = useAuthStore(s => s.signOut)
+  const user          = useAuthStore(s => s.user)
+  const signOut       = useAuthStore(s => s.signOut)
+  const activeSession = useSessionStore(s => s.activeSession)
 
   return (
     <aside
@@ -42,7 +44,22 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 p-3 flex flex-col gap-0.5 overflow-y-auto">
-        <NavItem to="/today" icon={icons.today} label="Today" shortcut="⌘1" />
+        <div style={{ position: 'relative' }}>
+          <NavItem to="/today" icon={icons.today} label="Today" shortcut="⌘1" />
+          {activeSession && (
+            <span style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--accent)',
+              animation: 'session-pulse 2s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+          )}
+        </div>
         <NavItem to="/calendar" icon={icons.calendar} label="Calendar" shortcut="⌘2" />
         <NavItem to="/team" icon={icons.team} label="Team Pulse" shortcut="⌘3" />
         <NavItem to="/reports" icon={icons.reports} label="Reports" shortcut="⌘4" />
