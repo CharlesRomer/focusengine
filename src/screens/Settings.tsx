@@ -249,9 +249,7 @@ export function SettingsScreen() {
                 {testing ? 'Testing...' : 'Test connection'}
               </button>
               {testResult === 'ok' && (
-                <span style={{ fontSize: 12, color: 'var(--success)', marginLeft: 10 }}>
-                  ✓ Tracker is sending data
-                </span>
+                <span style={{ fontSize: 12, color: 'var(--success)', marginLeft: 10 }}>✓ Tracker is sending data</span>
               )}
               {testResult === 'fail' && (
                 <span style={{ fontSize: 12, color: 'var(--warning)', marginLeft: 10 }}>
@@ -260,36 +258,115 @@ export function SettingsScreen() {
               )}
             </Card>
 
-            {/* Install steps */}
+            {/* Install guide */}
             <Card>
-              <SectionTitle>How to install</SectionTitle>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <Step n={1} title="Get the app">
-                  Ask your admin for the <strong>CompassTracker.app</strong> file (or download it when a link is shared with you).
-                  If macOS blocks it, right-click → Open → Open anyway.
+              <SectionTitle>Install the macOS tracker</SectionTitle>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                {/* Step 1 — Download */}
+                <Step n={1} title="Download the app">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                    <a
+                      href="/CompassTracker.zip"
+                      download
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 16px',
+                        background: 'var(--accent)',
+                        color: '#fff',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        textDecoration: 'none',
+                        transition: 'opacity 150ms',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                    >
+                      ↓ Download CompassTracker
+                    </a>
+                  </div>
+                  <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                    Unzip the file — you'll get <code style={{ fontFamily: 'monospace' }}>CompassTracker.app</code>.
+                    Drag it to your <strong>Applications</strong> folder.
+                  </p>
                 </Step>
-                <Step n={2} title="Grant permissions">
-                  The app will prompt for two permissions. Both are required:
-                  <ul style={{ margin: '6px 0 0 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      <strong>Accessibility</strong> — System Settings → Privacy &amp; Security → Accessibility → enable CompassTracker
-                    </li>
-                    <li style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      <strong>Automation</strong> — System Settings → Privacy &amp; Security → Automation → enable CompassTracker
-                    </li>
+
+                {/* Step 2 — Remove quarantine (the critical fix) */}
+                <Step n={2} title="Remove the macOS security flag">
+                  <p style={{ lineHeight: 1.5, marginBottom: 8 }}>
+                    macOS marks downloaded apps as "quarantined" which causes a{' '}
+                    <em>"damaged and can't be opened"</em> error for unsigned apps.
+                    Run this one command in Terminal to fix it before opening:
+                  </p>
+                  <div style={{
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 6,
+                    padding: '10px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}>
+                    <code style={{
+                      flex: 1,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: 'var(--text-primary)',
+                      userSelect: 'all',
+                    }}>
+                      xattr -cr /Applications/CompassTracker.app
+                    </code>
+                    <CopyButton value="xattr -cr /Applications/CompassTracker.app" label="Copy" />
+                  </div>
+                  <p style={{ marginTop: 8, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                    Open <strong>Terminal</strong> (search Spotlight for "Terminal"), paste the command, press Enter.
+                    You only need to do this once.
+                  </p>
+                </Step>
+
+                {/* Step 3 — Open */}
+                <Step n={3} title="Open the app">
+                  Double-click <code style={{ fontFamily: 'monospace', fontSize: 12 }}>CompassTracker.app</code> in your Applications folder.
+                  A compass icon will appear in your menu bar — that means it's running.
+                </Step>
+
+                {/* Step 4 — Permissions */}
+                <Step n={4} title="Grant two permissions">
+                  macOS will ask (or you'll need to grant manually):
+                  <ul style={{ margin: '8px 0 0 0', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[
+                      { name: 'Accessibility', path: 'System Settings → Privacy & Security → Accessibility', why: 'Needed to detect which app is in focus' },
+                      { name: 'Automation', path: 'System Settings → Privacy & Security → Automation', why: 'Needed to read browser tab URLs' },
+                    ].map(p => (
+                      <li key={p.name} style={{
+                        background: 'var(--bg-base)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{p.path}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', marginTop: 1 }}>{p.why}</div>
+                      </li>
+                    ))}
                   </ul>
                 </Step>
-                <Step n={3} title="Enter your credentials">
-                  The app will show a setup screen. Copy each value below and paste it in:
+
+                {/* Step 5 — Credentials */}
+                <Step n={5} title="Enter your credentials">
+                  The app shows a one-time setup screen. Copy the values below and paste them in:
                 </Step>
               </div>
             </Card>
 
-            {/* Credentials — all 4 in one place */}
+            {/* Credentials */}
             <Card>
               <SectionTitle>Your credentials</SectionTitle>
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16, lineHeight: 1.5 }}>
-                Copy these into the CompassTracker setup screen. You only need to do this once.
+                Paste these into CompassTracker when it asks. You only do this once — they're saved securely on your Mac.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <CodeRow label="Supabase URL"  value={supabaseUrl} />
@@ -297,8 +374,6 @@ export function SettingsScreen() {
                 <CodeRow label="Agent Token"   value={agentToken ?? ''} />
                 <CodeRow label="User ID"       value={user?.id ?? ''} />
               </div>
-
-              {/* Copy all button */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
                 <CopyButton
                   value={[
@@ -307,32 +382,45 @@ export function SettingsScreen() {
                     `Agent Token:   ${agentToken ?? ''}`,
                     `User ID:       ${user?.id ?? ''}`,
                   ].join('\n')}
-                  label="Copy all credentials"
+                  label="Copy all four values"
                 />
               </div>
             </Card>
 
             {/* Troubleshooting */}
             <Card>
-              <SectionTitle>Troubleshooting</SectionTitle>
+              <SectionTitle>Still having trouble?</SectionTitle>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { q: 'App won\'t open?', a: 'Right-click the app → Open → click "Open" in the dialog. macOS blocks unsigned apps by default.' },
-                  { q: 'No data appearing?', a: 'Make sure both Accessibility and Automation permissions are granted in System Settings → Privacy & Security.' },
-                  { q: 'Browser tabs not tracked?', a: 'Enable Automation in System Settings → Privacy & Security → Automation → CompassTracker → check Safari/Chrome.' },
-                  { q: 'How do I quit the tracker?', a: 'Click the Compass icon in your menu bar → Quit.' },
+                  {
+                    q: '"App is damaged and can\'t be opened"',
+                    a: 'Run the Terminal command in Step 2 above. This always fixes it.',
+                  },
+                  {
+                    q: '"App can\'t be opened because Apple cannot check it"',
+                    a: 'Go to System Settings → Privacy & Security → scroll down → click "Open Anyway" next to CompassTracker.',
+                  },
+                  {
+                    q: 'No data appearing after setup',
+                    a: 'Check that both Accessibility and Automation are enabled in System Settings → Privacy & Security. Quit and reopen the app after granting permissions.',
+                  },
+                  {
+                    q: 'Browser tabs show as "Unknown"',
+                    a: 'Enable Automation in System Settings → Privacy & Security → Automation → toggle on CompassTracker for Chrome/Safari.',
+                  },
+                  {
+                    q: 'How do I quit the tracker?',
+                    a: 'Click the compass icon in your menu bar → Quit.',
+                  },
                 ].map((item, i) => (
-                  <div key={i}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>
-                      {item.q}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-                      {item.a}
-                    </div>
+                  <div key={i} style={{ paddingBottom: 10, borderBottom: i < 4 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 3 }}>{item.q}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>{item.a}</div>
                   </div>
                 ))}
               </div>
             </Card>
+
           </div>
         )}
 
