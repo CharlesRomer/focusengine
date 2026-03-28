@@ -16,20 +16,12 @@ Deno.serve(async (req) => {
 
   try {
     // Verify the caller is authenticated and get their user ID
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const userClient = createClient(
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
+    const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
-    const { data: { user }, error: authError } = await userClient.auth.getUser()
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(token)
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -86,12 +78,6 @@ Deno.serve(async (req) => {
       refresh_token: string
       expires_in:    number
     }
-
-    // Store tokens using service role (bypasses RLS)
-    const serviceClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
 
     const expiry = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString()
     const { error: updateError } = await serviceClient

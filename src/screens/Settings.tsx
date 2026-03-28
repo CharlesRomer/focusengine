@@ -197,7 +197,9 @@ export function SettingsScreen() {
 
   async function connectGoogleCalendar() {
     setGcalLoading(true)
-    const { data, error } = await supabase.functions.invoke('google-oauth-url')
+    const { data, error } = await supabase.functions.invoke('google-oauth-url', {
+      body: { userId: user?.id },
+    })
     setGcalLoading(false)
     if (error) {
       console.error('[connectGoogleCalendar] invoke error:', error)

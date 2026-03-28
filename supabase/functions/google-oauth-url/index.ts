@@ -1,7 +1,7 @@
 // Edge Function: google-oauth-url
-// GET (authenticated) — returns the Google OAuth authorization URL
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// POST — accepts { userId } from the client, returns { url: string }
+// No JWT auth needed here — just builds the Google OAuth URL.
+// Security is enforced in google-oauth-callback (state/JWT match).
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,32 +14,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
+    const { userId } = await req.json() as { userId?: string }
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Missing userId' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Get user from JWT
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    )
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const clientId   = Deno.env.get('GOOGLE_CLIENT_ID')!
-    const appUrl     = Deno.env.get('APP_URL')!
+    const clientId    = Deno.env.get('GOOGLE_CLIENT_ID')!
+    const appUrl      = Deno.env.get('APP_URL')!
     const redirectUri = `${appUrl}/auth/google/callback`
-    const scope      = 'https://www.googleapis.com/auth/calendar.readonly'
+    const scope       = 'https://www.googleapis.com/auth/calendar.readonly'
 
     const params = new URLSearchParams({
       client_id:     clientId,
@@ -48,7 +34,7 @@ Deno.serve(async (req) => {
       scope,
       access_type:   'offline',
       prompt:        'consent',
-      state:         user.id,
+      state:         userId,
     })
 
     const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`

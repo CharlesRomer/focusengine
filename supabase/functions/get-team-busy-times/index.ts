@@ -56,32 +56,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Identify requesting user
-    const userClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    )
-    const { data: { user }, error: authError } = await userClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(token)
+    if (authError || !user) {
+      return new Response(JSON.stringify({}), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // Get requesting user's team_org_id
     const { data: requester } = await serviceClient
