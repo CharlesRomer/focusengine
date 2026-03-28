@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -12,13 +13,16 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ initialStep = 'signin', userId }: AuthScreenProps) {
+  const [searchParams] = useSearchParams()
+  const joinCodeFromUrl = searchParams.get('join') ?? ''
+
   const [step, setStep] = useState<Step>(initialStep)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [teamChoice, setTeamChoice] = useState<'create' | 'join'>('create')
+  const [teamChoice, setTeamChoice] = useState<'create' | 'join'>(joinCodeFromUrl ? 'join' : 'create')
   const [teamName, setTeamName] = useState('')
-  const [teamCode, setTeamCode] = useState('')
+  const [teamCode, setTeamCode] = useState(joinCodeFromUrl)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [authUserId, setAuthUserId] = useState<string | null>(userId ?? null)
@@ -268,34 +272,60 @@ export function AuthScreen({ initialStep = 'signin', userId }: AuthScreenProps) 
           {step === 'team' && (
             <form onSubmit={handleTeam} className="flex flex-col gap-4">
               <div>
-                <h2 className="text-[var(--text-lg)] font-semibold text-[var(--text-primary)]">Join a team</h2>
-                <p className="text-[var(--text-sm)] text-[var(--text-secondary)] mt-1">Start fresh or join your team.</p>
+                <h2 className="text-[var(--text-lg)] font-semibold text-[var(--text-primary)]">
+                  {joinCodeFromUrl ? "You've been invited" : 'Set up your team'}
+                </h2>
+                <p className="text-[var(--text-sm)] text-[var(--text-secondary)] mt-1">
+                  {joinCodeFromUrl
+                    ? 'Your team code is already filled in — just click Join.'
+                    : 'Start a new team or join an existing one.'}
+                </p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTeamChoice('create')}
-                  className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] text-[var(--text-sm)] font-medium border transition-all ${
-                    teamChoice === 'create'
-                      ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent)]'
-                      : 'bg-transparent border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
+
+              {/* Invite banner */}
+              {joinCodeFromUrl && (
+                <div
+                  className="rounded-[var(--radius-md)] px-4 py-3"
+                  style={{
+                    background: 'var(--accent-subtle)',
+                    border: '1px solid rgba(124,111,224,0.25)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-secondary)',
+                  }}
                 >
-                  Create team
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeamChoice('join')}
-                  className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] text-[var(--text-sm)] font-medium border transition-all ${
-                    teamChoice === 'join'
-                      ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent)]'
-                      : 'bg-transparent border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-                >
-                  Join team
-                </button>
-              </div>
-              {teamChoice === 'create' ? (
+                  Team code <code style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>{joinCodeFromUrl}</code> will be used to join your team.
+                </div>
+              )}
+
+              {/* Create / Join toggle — hidden when invite link was used */}
+              {!joinCodeFromUrl && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTeamChoice('create')}
+                    className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] text-[var(--text-sm)] font-medium border transition-all ${
+                      teamChoice === 'create'
+                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent)]'
+                        : 'bg-transparent border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                    }`}
+                  >
+                    Create team
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeamChoice('join')}
+                    className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] text-[var(--text-sm)] font-medium border transition-all ${
+                      teamChoice === 'join'
+                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent)]'
+                        : 'bg-transparent border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                    }`}
+                  >
+                    Join team
+                  </button>
+                </div>
+              )}
+
+              {teamChoice === 'create' && !joinCodeFromUrl ? (
                 <Input
                   label="Team name"
                   value={teamName}
@@ -311,11 +341,13 @@ export function AuthScreen({ initialStep = 'signin', userId }: AuthScreenProps) 
                   onChange={e => setTeamCode(e.target.value)}
                   placeholder="abc12345"
                   error={errors.team}
-                  autoFocus
+                  autoFocus={!joinCodeFromUrl}
+                  readOnly={!!joinCodeFromUrl}
                 />
               )}
+
               <Button type="submit" loading={loading} className="w-full mt-2">
-                {teamChoice === 'create' ? 'Create team' : 'Join team'}
+                {teamChoice === 'create' && !joinCodeFromUrl ? 'Create team' : 'Join team'}
               </Button>
             </form>
           )}
