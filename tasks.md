@@ -38,9 +38,15 @@
 - [ ] Supabase manual steps: run migration 002, deploy edge functions, webhook + cron (notes.md)
 
 ### Phase 6 — Team Pulse
-- [ ] Live status strip (Realtime subscription)
-- [ ] Team commitments view (grouped by person)
-- [ ] Weekly execution rate + 7-day sparkline
+- [x] Live status strip (Locked in / Paused / Active / Offline) — Realtime via focus_sessions + activity_events
+- [x] Status cards: elapsed timer (60s update), context line (session name or last app)
+- [x] Today's commitments grid — all members, your column is interactive
+- [x] Mark done / skip / reopen your own commitments from Team Pulse
+- [x] Weekly execution section — team rate, 7-day sparkline, per-member table
+- [x] Realtime: session starts, commitment updates, activity events — no page refresh
+- [x] Solo member banner with Settings link
+- [x] Migration 008: team-wide RLS policies (SELECT for all team members)
+- [ ] Run migration 008 in Supabase SQL Editor (see notes.md)
 
 ### Phase 7 — Reports
 - [x] Personal: time breakdown donut chart (Recharts PieChart)

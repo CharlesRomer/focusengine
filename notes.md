@@ -69,6 +69,19 @@ npm run build        # tsc + vite build — use this to verify no TS errors
 - **Focus score**: `computeFocusScore` returns `null` when no activity_events exist (honest signal). Live score updates every 60s by fetching real activity_events. Final score on end also uses real data.
 - **Block picker flow**: StartSessionModal queries today's unlinked focus_blocks on open. If found, shows card picker first. Selecting a block links `focus_blocks.session_id = session.id` after insert.
 
+## Phase 6 notes
+
+- **Realtime channel per screen**: Team Pulse uses a single channel `team-pulse-{teamOrgId}` with 3 postgres_changes subscriptions (focus_sessions, commitments, activity_events). Channel is cleaned up on unmount.
+- **Avatar color**: deterministic from user_id — `hsl(sum_of_charCodes % 360, 45%, 38%)`. Same formula used in StatusStrip and WeeklyExecution table.
+- **Elapsed timer**: Updates every 60s (not every second) — ambient display, not a precise stopwatch.
+- **Soft-deleted commitments**: Shown as incomplete (no reason text) per spec. Team Pulse query does NOT filter deleted_at.
+- **Status ordering**: Locked in > Paused > Active > Offline not enforced in strip — current user always shown first, then alphabetical.
+- **`team-members can view team users` policy**: allows reading all user rows where team_org_id matches. Needed for display_name + active_session_id lookups.
+
+### Manual steps to activate Phase 6
+
+1. Run `supabase/migrations/008_team_pulse_rls.sql` in Supabase SQL Editor
+
 ## Phase 7 notes
 
 - **weekly_digests RLS**: uses `service_role` for writes — edge functions must use `SUPABASE_SERVICE_ROLE_KEY`, not the anon key, when upserting digests.
