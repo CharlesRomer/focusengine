@@ -21,15 +21,16 @@ CONFIG_DIR  = Path.home() / '.compass'
 CONFIG_FILE = CONFIG_DIR / 'config.json'
 DB_FILE     = CONFIG_DIR / 'sessions.db'
 
-SUPABASE_URL = None
-ANON_KEY     = None
-AGENT_TOKEN  = None
-USER_ID      = None
-SESSION_ID   = None  # active focus session id (polled every 30s)
+SUPABASE_URL  = None
+ANON_KEY      = None
+AGENT_TOKEN   = None
+USER_ID       = None
+TEAM_ORG_ID   = None  # cached at startup
+SESSION_ID    = None  # active focus session id (polled every 30s)
 
 POLL_INTERVAL        = 5    # seconds between app/tab checks
 SESSION_POLL_SECS    = 30   # seconds between active_session_id polls
-FLUSH_INTERVAL_SECS  = 600  # send to Supabase every 10 minutes
+FLUSH_INTERVAL_SECS  = 30   # send to Supabase every 30s (testing)
 IDLE_THRESHOLD_SECS  = 300  # 5 minutes idle = close current session
 
 # ── Current session state ─────────────────────────────────────────
@@ -91,7 +92,7 @@ def flush_disk_buffer():
 
 # ── Config + auth ─────────────────────────────────────────────────
 def load_config() -> bool:
-    global SUPABASE_URL, ANON_KEY, AGENT_TOKEN, USER_ID
+    global SUPABASE_URL, ANON_KEY, AGENT_TOKEN, USER_ID, TEAM_ORG_ID
     if not CONFIG_FILE.exists():
         return False
     with open(CONFIG_FILE) as f:
@@ -100,7 +101,29 @@ def load_config() -> bool:
     ANON_KEY     = c.get('anon_key')
     AGENT_TOKEN  = c.get('token')
     USER_ID      = c.get('user_id')
+    TEAM_ORG_ID  = c.get('team_org_id')  # optional pre-cached value
     return bool(SUPABASE_URL and ANON_KEY and AGENT_TOKEN and USER_ID)
+
+def fetch_team_org_id() -> bool:
+    """Fetch and cache team_org_id from users table. Returns True on success."""
+    global TEAM_ORG_ID
+    headers = _auth_headers()
+    if not headers or not USER_ID:
+        return False
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/users",
+            headers={**headers, 'Accept': 'application/json'},
+            params={'id': f'eq.{USER_ID}', 'select': 'team_org_id'},
+            timeout=5,
+        )
+        print(f'[compass-tracker] team_org_id lookup: status={r.status_code} body={r.text[:200]}')
+        if r.status_code == 200 and r.json():
+            TEAM_ORG_ID = r.json()[0].get('team_org_id')
+            return bool(TEAM_ORG_ID)
+    except Exception as e:
+        print(f'[compass-tracker] team_org_id lookup error: {e}')
+    return False
 
 def _auth_headers():
     if not ANON_KEY or not AGENT_TOKEN:
@@ -203,21 +226,10 @@ def poll_active_session():
 # ── Send sessions to Supabase ─────────────────────────────────────
 def _send_session(payload: dict, headers: dict) -> bool:
     """Send one session to activity_events. Returns True on success."""
-    # Look up team_org_id if not set
     if not payload.get('team_org_id'):
-        try:
-            r = requests.get(
-                f"{SUPABASE_URL}/rest/v1/users",
-                headers={**headers, 'Accept': 'application/json'},
-                params={'id': f'eq.{USER_ID}', 'select': 'team_org_id'},
-                timeout=5,
-            )
-            if r.status_code == 200 and r.json():
-                payload['team_org_id'] = r.json()[0].get('team_org_id')
-        except Exception:
-            pass
-
+        payload['team_org_id'] = TEAM_ORG_ID
     if not payload.get('team_org_id'):
+        print('[compass-tracker] No team_org_id — skipping send')
         return False
 
     # Remove keys not in activity_events schema
@@ -231,8 +243,13 @@ def _send_session(payload: dict, headers: dict) -> bool:
             f"{SUPABASE_URL}/rest/v1/activity_events",
             headers=headers, json=data, timeout=5,
         )
-        return r.status_code in (200, 201)
-    except Exception:
+        ok = r.status_code in (200, 201)
+        print(f'[compass-tracker] send {"OK" if ok else "FAIL"} status={r.status_code} app={data.get("app_name")} dur={data.get("duration_seconds")}s')
+        if not ok:
+            print(f'[compass-tracker] response: {r.text[:300]}')
+        return ok
+    except Exception as e:
+        print(f'[compass-tracker] send error: {e}')
         return False
 
 def flush_pending():
@@ -268,7 +285,13 @@ def main():
         print('[compass-tracker] No config found at ~/.compass/config.json — exiting.')
         return
 
-    print(f'[compass-tracker] Started. Polling every {POLL_INTERVAL}s, flushing every {FLUSH_INTERVAL_SECS//60}min.')
+    print(f'[compass-tracker] Started. Polling every {POLL_INTERVAL}s, flushing every {FLUSH_INTERVAL_SECS}s.')
+
+    if not TEAM_ORG_ID:
+        if fetch_team_org_id():
+            print(f'[compass-tracker] team_org_id={TEAM_ORG_ID}')
+        else:
+            print('[compass-tracker] WARNING: could not fetch team_org_id — run migration 006 in Supabase')
 
     poll_active_session()
     _last_session_poll = time.time()
@@ -303,6 +326,7 @@ def main():
 
             # Detect app or tab switch
             if (app_name != _cur['app_name'] or tab_url != _cur['tab_url']):
+                print(f'[compass-tracker] switch → {app_name} | {tab_url or tab_title or ""}')
                 _close_current(now)
                 _start_session(now, app_name, bundle_id, tab_url, tab_title)
 

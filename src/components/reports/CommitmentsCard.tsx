@@ -80,6 +80,7 @@ export function CommitmentsCard({ userId, window }: Props) {
           />
           <YAxis
             allowDecimals={false}
+            domain={[0, 5]}
             tick={CHART_TICK_STYLE}
             {...CHART_AXIS_PROPS}
           />

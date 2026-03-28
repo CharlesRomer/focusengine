@@ -44,7 +44,7 @@ export const CATEGORY_LABELS: Record<ActivityCategory, string> = {
   meeting:       'Meetings',
   communication: 'Communication',
   off_task:      'Off task',
-  idle:          'Idle',
+  idle:          'Idle / away',
   untracked:     'Untracked',
 }
 

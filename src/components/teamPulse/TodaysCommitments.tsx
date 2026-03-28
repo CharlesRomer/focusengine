@@ -103,7 +103,7 @@ function MemberColumn({
   const [addText, setAddText] = useState('')
   const addCommitment = useAddCommitment()
 
-  const canAdd = isOwn && totalCount < 3
+  const canAdd = isOwn && totalCount < 5
 
   function handleAdd(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return

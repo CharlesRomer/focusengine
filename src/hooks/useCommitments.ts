@@ -25,9 +25,10 @@ export function useCommitments(date?: string) {
   })
 }
 
-export function useAddCommitment() {
+export function useAddCommitment(date?: string) {
   const user = useAuthStore(s => s.user)
   const qc = useQueryClient()
+  const targetDate = date ?? todayLocal()
 
   return useMutation({
     mutationFn: async (text: string) => {
@@ -37,7 +38,7 @@ export function useAddCommitment() {
         .insert({
           user_id: user!.id,
           team_org_id: user!.team_org_id,
-          date: todayLocal(),
+          date: targetDate,
           text: text.trim(),
         })
         .select()

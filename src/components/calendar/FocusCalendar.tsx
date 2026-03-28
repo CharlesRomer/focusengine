@@ -201,9 +201,10 @@ function renderEventContent(arg: EventContentArg) {
 interface FocusCalendarProps {
   showToolbar?: boolean
   initialView?: string
+  externalDate?: Date  // When set, calendar navigates to this date
 }
 
-export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' }: FocusCalendarProps) {
+export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay', externalDate }: FocusCalendarProps) {
   const user           = useAuthStore(s => s.user)
   const qc             = useQueryClient()
   const activeSession  = useSessionStore(s => s.activeSession)
@@ -220,6 +221,12 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
   const popoverNameRef = useRef('')
 
   const calendarRef = useRef<FullCalendar>(null)
+
+  // Navigate calendar when externalDate changes (from Today tab date nav)
+  useEffect(() => {
+    if (!externalDate) return
+    calendarRef.current?.getApi().gotoDate(externalDate)
+  }, [externalDate])
 
   function handleNameChange(val: string) {
     setPopoverName(val)

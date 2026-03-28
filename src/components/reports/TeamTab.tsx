@@ -35,6 +35,7 @@ interface MemberRow {
   score: number | null
   sessions: number
   deepWorkSeconds: number
+  idleSeconds: number
   totalSeconds: number
   done: number
   total: number
@@ -63,6 +64,9 @@ export function TeamTab({ user, window }: Props) {
     const deepSec = memberActivity
       .filter((a) => a.category === 'deep_work')
       .reduce((s, a) => s + (a.duration_seconds ?? 0), 0)
+    const idleSec = memberActivity
+      .filter((a) => a.category === 'idle')
+      .reduce((s, a) => s + (a.duration_seconds ?? 0), 0)
 
     const memberSessions = (sessions ?? []).filter((s) => s.user_id === m.id)
     const scores = memberSessions
@@ -82,6 +86,7 @@ export function TeamTab({ user, window }: Props) {
       score: avgScore,
       sessions: memberSessions.length,
       deepWorkSeconds: deepSec,
+      idleSeconds: idleSec,
       totalSeconds: totalSec,
       done,
       total: memberComms.length,
@@ -230,6 +235,7 @@ export function TeamTab({ user, window }: Props) {
                   )}
                 </th>
               ))}
+              <th style={th}>Idle %</th>
             </tr>
           </thead>
           <tbody>
@@ -295,10 +301,23 @@ export function TeamTab({ user, window }: Props) {
                       {row.total === 0 ? '—' : `${executionRate(row.done, row.total)}%`}
                     </span>
                   </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {row.totalSeconds > 0 ? (() => {
+                      const idlePct = Math.round((row.idleSeconds / row.totalSeconds) * 100)
+                      return (
+                        <span style={{
+                          fontSize: 'var(--text-sm)',
+                          color: idlePct > 30 ? 'var(--warning)' : 'var(--text-secondary)',
+                        }}>
+                          {idlePct}%
+                        </span>
+                      )
+                    })() : <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>—</span>}
+                  </td>
                 </tr>
                 {expandedMember === row.id && (
                   <tr key={`${row.id}-expand`} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <td colSpan={5} style={{ padding: '12px 16px 16px', background: 'var(--bg-surface)' }}>
+                    <td colSpan={6} style={{ padding: '12px 16px 16px', background: 'var(--bg-surface)' }}>
                       <MemberAppBreakdown memberId={row.id} window={window} />
                     </td>
                   </tr>
@@ -308,7 +327,7 @@ export function TeamTab({ user, window }: Props) {
             {sorted.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   style={{
                     padding: '32px 12px',
                     textAlign: 'center',

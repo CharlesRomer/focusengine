@@ -25,26 +25,36 @@ export function TimeBreakdownCard({ userId, window }: Props) {
     byCategory.set(ev.category, (byCategory.get(ev.category) ?? 0) + s)
   }
 
-  // Show all categories except idle
   const displayCategories: ActivityCategory[] = ['deep_work', 'meeting', 'communication', 'off_task', 'untracked']
   const chartData = displayCategories
     .map((cat) => ({ cat, seconds: byCategory.get(cat) ?? 0 }))
     .filter((d) => d.seconds > 0)
 
-  const totalTracked = chartData.reduce((a, b) => a + b.seconds, 0)
+  // Idle is always in legend (even 0), in donut only if > 0
+  const idleSeconds = byCategory.get('idle') ?? 0
+  const idleChartEntry = idleSeconds > 0 ? [{ cat: 'idle' as ActivityCategory, seconds: idleSeconds }] : []
+  const fullChartData = [...chartData, ...idleChartEntry]
+
+  const totalTracked = fullChartData.reduce((a, b) => a + b.seconds, 0)
+
+  // Legend always includes idle row
+  const legendData: { cat: ActivityCategory; seconds: number }[] = [
+    ...chartData,
+    { cat: 'idle', seconds: idleSeconds },
+  ]
 
   return (
     <ReportCard
       title="Time breakdown"
       loading={isLoading}
-      empty={chartData.length === 0}
+      empty={chartData.length === 0 && idleSeconds === 0}
     >
       <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'center' }}>
         <div style={{ flexShrink: 0, width: 160, height: 160 }}>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie
-                data={chartData}
+                data={fullChartData}
                 cx="50%"
                 cy="50%"
                 innerRadius={50}
@@ -53,7 +63,7 @@ export function TimeBreakdownCard({ userId, window }: Props) {
                 isAnimationActive={false}
                 strokeWidth={0}
               >
-                {chartData.map((entry) => (
+                {fullChartData.map((entry) => (
                   <Cell key={entry.cat} fill={CATEGORY_COLORS[entry.cat]} />
                 ))}
               </Pie>
@@ -68,7 +78,7 @@ export function TimeBreakdownCard({ userId, window }: Props) {
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {chartData.map(({ cat, seconds }) => {
+          {legendData.map(({ cat, seconds }) => {
             const pct = totalTracked > 0 ? Math.round((seconds / totalTracked) * 100) : 0
             return (
               <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -11,6 +11,10 @@ final class TrackerEngine: ObservableObject {
     private var currentTabURL:    String? = nil
     private var currentTabTitle:  String? = nil
     private var sessionStart:     Date    = Date()
+    private var isIdle:           Bool    = false
+
+    private let idleThresholdSeconds: Double = 300   // 5 minutes
+    private let activeThresholdSeconds: Double = 30  // resume after 30s of activity
 
     private var keepAliveTimer: Timer?
 
@@ -39,10 +43,10 @@ final class TrackerEngine: ObservableObject {
             handleAppSwitch(front)
         }
 
-        // Every 30 s: re-check browser tab in case the URL changed without a
-        // focus-change notification (e.g. clicked a link in the same window)
+        // Every 30 s: re-check browser tab + check idle state
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             self?.checkBrowserTabChange()
+            self?.checkIdleState()
         }
 
         isTracking = true
@@ -98,6 +102,43 @@ final class TrackerEngine: ObservableObject {
         sessionStart    = Date()
     }
 
+    // ── Idle detection ────────────────────────────────────────────
+
+    private func checkIdleState() {
+        let idleSecs = CGEventSource.secondsSinceLastEventType(
+            .hidSystemState, eventType: CGEventType(rawValue: ~0)!
+        )
+        if !isIdle && idleSecs > idleThresholdSeconds {
+            // Transition → idle
+            isIdle = true
+            closeCurrentSession()
+            currentApp      = "Idle"
+            currentBundleId = nil
+            currentTabURL   = nil
+            currentTabTitle = nil
+            sessionStart    = Date()
+        } else if isIdle && idleSecs < activeThresholdSeconds {
+            // Transition → active: close idle session, resume with frontmost app
+            isIdle = false
+            let idleDuration = Int(Date().timeIntervalSince(sessionStart))
+            if idleDuration >= 2 {
+                SupabaseClient.shared.send(ActivitySession(
+                    appName: "Idle",
+                    bundleId: nil,
+                    tabURL: nil,
+                    tabTitle: nil,
+                    startedAt: sessionStart,
+                    endedAt: Date(),
+                    durationSeconds: idleDuration,
+                    category: "idle"
+                ))
+            }
+            if let front = NSWorkspace.shared.frontmostApplication {
+                handleAppSwitch(front)
+            }
+        }
+    }
+
     // ── Session close ─────────────────────────────────────────────
 
     private func closeCurrentSession() {
@@ -127,4 +168,5 @@ struct ActivitySession {
     let startedAt:       Date
     let endedAt:         Date
     let durationSeconds: Int
+    var category:        String? = nil  // nil → "untracked"; "idle" for idle sessions
 }

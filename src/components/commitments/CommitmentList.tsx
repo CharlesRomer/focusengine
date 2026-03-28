@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { todayLocal } from '@/lib/time'
 
-const MAX_COMMITMENTS = 3
+const MAX_COMMITMENTS = 5
 
 function fmtScheduledTime(startTime: string): string {
   const [h, m] = startTime.split(':').map(Number)
@@ -16,25 +16,31 @@ function fmtScheduledTime(startTime: string): string {
   return `${displayH}:${String(m).padStart(2, '0')}${suffix}`
 }
 
-export function CommitmentList() {
-  const { data: commitments, isLoading } = useCommitments()
-  const { data: focusBlocks = [] } = useFocusBlocks(todayLocal())
-  const addCommitment = useAddCommitment()
+interface CommitmentListProps {
+  date?: string      // ISO date like "2025-03-27", defaults to today
+  readOnly?: boolean // past days are read-only
+}
+
+export function CommitmentList({ date, readOnly = false }: CommitmentListProps) {
+  const targetDate = date ?? todayLocal()
+  const { data: commitments, isLoading } = useCommitments(targetDate)
+  const { data: focusBlocks = [] } = useFocusBlocks(targetDate)
+  const addCommitment = useAddCommitment(targetDate)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef  = useRef<HTMLDivElement>(null)
 
   const active = commitments?.filter(c => !c.deleted_at) ?? []
   const sorted = [...active].sort((a, b) => {
-    // open items first, then done/incomplete; within each group sort by created_at asc
     if (a.status === 'open' && b.status !== 'open') return -1
     if (b.status === 'open' && a.status !== 'open') return 1
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   })
-  const canAdd = active.length < MAX_COMMITMENTS
+  const canAdd = !readOnly && active.length < MAX_COMMITMENTS
 
   // Initialize FullCalendar Draggable on the commitment list container
   useEffect(() => {
+    if (readOnly) return
     const el = listRef.current
     if (!el) return
     const draggable = new Draggable(el, {
@@ -46,7 +52,7 @@ export function CommitmentList() {
       }),
     })
     return () => draggable.destroy()
-  }, [])
+  }, [readOnly])
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return
@@ -65,8 +71,22 @@ export function CommitmentList() {
     )
   }
 
+  const remaining = MAX_COMMITMENTS - active.length
+
   return (
     <div className="flex flex-col">
+      {/* Read-only banner for past days */}
+      {readOnly && (
+        <div style={{
+          padding: '4px 12px 8px',
+          fontSize: 11,
+          color: 'var(--text-tertiary)',
+          fontStyle: 'italic',
+        }}>
+          Read only — past day
+        </div>
+      )}
+
       <div ref={listRef}>
         {active.length === 0 ? (
           <EmptyState
@@ -76,8 +96,8 @@ export function CommitmentList() {
                 <path d="M7 10h6M10 7v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             }
-            title="Nothing committed yet"
-            subtitle="Add up to 3 commitments for today"
+            title={readOnly ? 'No commitments this day' : 'Nothing committed yet'}
+            subtitle={readOnly ? undefined : 'Add up to 5 commitments for today'}
           />
         ) : (
           <div className="flex flex-col">
@@ -89,6 +109,7 @@ export function CommitmentList() {
                   commitment={c}
                   hasBlock={!!linkedBlock}
                   scheduledTime={linkedBlock ? fmtScheduledTime(linkedBlock.start_time) : undefined}
+                  readOnly={readOnly}
                 />
               )
             })}
@@ -96,7 +117,7 @@ export function CommitmentList() {
         )}
       </div>
 
-      {/* Add input */}
+      {/* Add input — only when not read-only and under the limit */}
       {canAdd && (
         <div className="px-3 pt-2">
           <input
@@ -104,15 +125,19 @@ export function CommitmentList() {
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={active.length === 0 ? 'What must get done today? + Enter' : 'Add another + Enter'}
+            placeholder={
+              active.length === 0
+                ? 'What must get done today? + Enter'
+                : `Add another (${remaining} of ${MAX_COMMITMENTS} remaining) + Enter`
+            }
             disabled={addCommitment.isPending}
             className="w-full h-9 bg-transparent border border-[var(--border-default)] rounded-[var(--radius-md)] px-3 text-[var(--text-sm)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border-strong)] focus:shadow-[0_0_0_3px_rgba(124,111,224,0.15)] transition-all disabled:opacity-50"
           />
         </div>
       )}
-      {!canAdd && (
+      {!readOnly && !canAdd && (
         <p className="px-3 pt-2 text-[var(--text-xs)] text-[var(--text-tertiary)]">
-          Max 3 commitments per day
+          Max {MAX_COMMITMENTS} commitments per day
         </p>
       )}
     </div>

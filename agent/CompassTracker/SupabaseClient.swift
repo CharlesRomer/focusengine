@@ -72,7 +72,7 @@ final class SupabaseClient {
             "started_at":       iso.string(from: session.startedAt),
             "ended_at":         iso.string(from: session.endedAt),
             "duration_seconds": session.durationSeconds,
-            "category":         "untracked",
+            "category":         session.category ?? "untracked",
         ]
         if let v = session.bundleId  { payload["bundle_id"]  = v }
         if let v = session.tabURL    { payload["tab_url"]    = v }

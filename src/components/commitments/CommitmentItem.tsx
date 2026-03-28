@@ -10,9 +10,10 @@ interface CommitmentItemProps {
   commitment: DBCommitment
   hasBlock?: boolean
   scheduledTime?: string
+  readOnly?: boolean
 }
 
-export function CommitmentItem({ commitment, hasBlock, scheduledTime }: CommitmentItemProps) {
+export function CommitmentItem({ commitment, hasBlock, scheduledTime, readOnly = false }: CommitmentItemProps) {
   const [showLink, setShowLink] = useState(false)
   const [showIncomplete, setShowIncomplete] = useState(false)
   const [reason, setReason] = useState('')
@@ -58,7 +59,7 @@ export function CommitmentItem({ commitment, hasBlock, scheduledTime }: Commitme
 
         {/* Status circle */}
         <button
-          onClick={() => { if (isOpen) setShowLink(true) }}
+          onClick={() => { if (isOpen && !readOnly) setShowLink(true) }}
           className={clsx(
             'mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all',
             isDone       && 'bg-[var(--success)] border-[var(--success)]',
@@ -111,10 +112,11 @@ export function CommitmentItem({ commitment, hasBlock, scheduledTime }: Commitme
           )}
         </div>
 
-        {/* Actions */}
+        {/* Actions — hidden in read-only mode */}
         <div className={clsx(
           'flex items-center gap-1 flex-shrink-0 transition-opacity',
-          isOpen ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+          isOpen ? 'opacity-0 group-hover:opacity-100' : 'opacity-100',
+          readOnly && 'hidden'
         )}>
           {isOpen && (
             <>

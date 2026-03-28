@@ -20,6 +20,7 @@ import { TeamPulseScreen } from '@/screens/TeamPulse'
 import { ReportsScreen } from '@/screens/Reports'
 import { SettingsScreen } from '@/screens/Settings'
 import { DownloadScreen } from '@/screens/Download'
+import { GuideScreen } from '@/screens/Guide'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -140,6 +141,7 @@ function AppRoutes() {
             <Route path="/reports"  element={<ErrorBoundary key="reports"><ReportsScreen /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary key="settings"><SettingsScreen /></ErrorBoundary>} />
             <Route path="/download" element={<DownloadScreen />} />
+            <Route path="/guide"    element={<ErrorBoundary key="guide"><GuideScreen /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
         </main>
