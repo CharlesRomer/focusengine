@@ -290,6 +290,34 @@ button, input, textarea, select {
   animation-play-state: paused;
 }
 
+/* Google Calendar events — blue italic, non-interactive */
+.fc .fc-event.gcal-event {
+  border-left: 2px solid #5A9FE0 !important;
+  font-style: italic;
+  cursor: default !important;
+  border-radius: var(--radius-sm);
+}
+.fc .fc-event.gcal-event .fc-event-main {
+  pointer-events: none;
+}
+
+/* Team calendar — hide time axis on secondary columns */
+.tc-col-secondary td.fc-timegrid-axis,
+.tc-col-secondary .fc-timegrid-slot-label {
+  display: none !important;
+}
+.tc-col-secondary .fc-timegrid-cols td:first-child {
+  display: none !important;
+}
+/* Team calendar slot height override — matches 96px/hr custom timeline */
+.tc-calendar .fc .fc-timegrid-slot {
+  height: 24px;
+}
+/* Remove column header in team calendar columns */
+.tc-calendar .fc .fc-col-header {
+  display: none;
+}
+
 /* Commitment done pop animation */
 @keyframes commitment-pop {
   0%   { transform: scale(1); }

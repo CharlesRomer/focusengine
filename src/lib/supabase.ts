@@ -25,6 +25,7 @@ export interface DBUser {
   agent_token: string | null
   active_session_id: string | null
   created_at: string
+  google_calendar_connected: boolean | null
 }
 
 export interface DBTeam {

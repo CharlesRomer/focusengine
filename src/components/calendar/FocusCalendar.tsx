@@ -16,11 +16,19 @@ import { useFocusBlocksRange } from '@/hooks/useFocusBlocks'
 import { useCommitments } from '@/hooks/useCommitments'
 import { useAuthStore } from '@/store/auth'
 import { useSessionStore } from '@/store/session'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { DBFocusSession } from '@/lib/supabase'
 import { todayLocal } from '@/lib/time'
 import { toast } from '@/store/ui'
+
+interface GCalEvent {
+  id: string
+  summary: string
+  start: string
+  end: string
+  isAllDay: boolean
+}
 
 // ── Helpers ───────────────────────────────────────────────────────
 function addMinutesToTime(timeStr: string, mins: number): string {
@@ -46,6 +54,60 @@ function extractDate(isoStr: string) {
 
 function extractTime(isoStr: string) {
   return isoStr.split('T')[1]?.slice(0, 5) ?? '00:00'
+}
+
+// ── GCal read-only tooltip ────────────────────────────────────────
+interface GcalTooltipState {
+  title: string
+  timeLabel: string
+  x: number
+  y: number
+}
+
+function GcalTooltip({ state, onClose }: { state: GcalTooltipState; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const W = 200, H = 70
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', (e) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      }, { once: true })
+    }, 0)
+    return () => clearTimeout(t)
+  }, [onClose])
+
+  const vw   = window.innerWidth
+  const vh   = window.innerHeight
+  const left = state.x + W > vw - 8 ? state.x - W - 8 : state.x + 8
+  const top  = state.y + H > vh - 8 ? state.y - H     : state.y
+
+  return (
+    <div
+      ref={ref}
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed',
+        left: Math.max(8, left),
+        top:  Math.max(8, top),
+        width: W,
+        zIndex: 1000,
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '10px 12px',
+        boxShadow: 'var(--shadow-lg)',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 3 }}>
+        {state.title}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{state.timeLabel}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontStyle: 'italic' }}>
+        Google Calendar · read-only
+      </div>
+    </div>
+  )
 }
 
 // ── Popover ───────────────────────────────────────────────────────
@@ -215,8 +277,27 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
 
   const { data: focusBlocks = [] } = useFocusBlocksRange(dateRange.start, dateRange.end)
 
+  // GCal events (only when connected)
+  const gcalEnabled = !!user?.google_calendar_connected
+  const { data: gcalEvents = [] } = useQuery<GCalEvent[]>({
+    queryKey: ['gcal-events', user?.id, dateRange.start, dateRange.end],
+    enabled: gcalEnabled,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('get-calendar-events', {
+        body: {
+          date_min: `${dateRange.start}T00:00:00Z`,
+          date_max: `${dateRange.end}T23:59:59Z`,
+        },
+      })
+      if (error) throw error
+      return (data ?? []) as GCalEvent[]
+    },
+  })
+
   const [popover,      setPopover]     = useState<PopoverState | null>(null)
   const [popoverName,  setPopoverName] = useState('')
+  const [gcalTooltip,  setGcalTooltip] = useState<GcalTooltipState | null>(null)
   const popoverRef     = useRef<HTMLDivElement>(null)
   const popoverNameRef = useRef('')
 
@@ -395,6 +476,21 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
 
   // ── handleEventClick — open popover ─────────────────────────
   function handleEventClick(info: EventClickArg) {
+    // GCal events: show read-only tooltip only
+    if (info.event.id.startsWith('gcal-')) {
+      info.jsEvent?.preventDefault()
+      const { start, end } = info.event
+      const startStr = start ? format(start, 'HH:mm') : ''
+      const endStr   = end   ? format(end,   'HH:mm') : ''
+      const rect     = info.el.getBoundingClientRect()
+      setGcalTooltip({
+        title:     info.event.title,
+        timeLabel: startStr && endStr ? timeRangeLabel(startStr, endStr) : '',
+        x: rect.right + 8,
+        y: rect.top,
+      })
+      return
+    }
     const { start, end } = info.event
     const startStr = start ? format(start, 'HH:mm') : '00:00'
     const endStr   = end   ? format(end,   'HH:mm') : '00:00'
@@ -445,7 +541,7 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
 
   // ── Build calendar events ────────────────────────────────────
   const seenIds = new Set<string>()
-  const calendarEvents = focusBlocks
+  const blockEvents = focusBlocks
     .filter(b => { if (seenIds.has(b.id)) return false; seenIds.add(b.id); return true })
     .map(b => ({
       id:              b.id,
@@ -454,8 +550,25 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
       end:             `${b.date}T${b.end_time}`,
       backgroundColor: 'var(--accent)',
       borderColor:     'transparent',
+      editable:        true,
       extendedProps:   { commitmentId: b.commitment_id, horizonTag: b.horizon_tag, sessionId: b.session_id },
     }))
+
+  const gcalCalendarEvents = gcalEvents.map(e => ({
+    id:              `gcal-${e.id}`,
+    title:           e.summary,
+    start:           e.start,
+    end:             e.end,
+    allDay:          e.isAllDay,
+    editable:        false,
+    backgroundColor: 'rgba(90,159,224,0.15)',
+    borderColor:     '#5A9FE0',
+    textColor:       '#6FB0E8',
+    classNames:      ['gcal-event'],
+    extendedProps:   { type: 'gcal' },
+  }))
+
+  const calendarEvents = [...blockEvents, ...gcalCalendarEvents]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -512,6 +625,13 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay',
           onStartSession={handleStartSession}
           hasActiveSession={!!activeSession}
           popoverRef={popoverRef}
+        />
+      )}
+
+      {gcalTooltip && (
+        <GcalTooltip
+          state={gcalTooltip}
+          onClose={() => setGcalTooltip(null)}
         />
       )}
     </div>

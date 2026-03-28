@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import type { DBUser } from '@/lib/supabase'
 import { toast } from '@/store/ui'
 import { format } from 'date-fns'
 
@@ -130,6 +131,7 @@ export function SettingsScreen() {
   const setUser  = useAuthStore(s => s.setUser)
   const signOut  = useAuthStore(s => s.signOut)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { status, lastPing } = useAgentStatus(user?.id)
   const team = useTeamData(user?.team_org_id ?? null)
 
@@ -144,6 +146,26 @@ export function SettingsScreen() {
   const [authEmail,        setAuthEmail]         = useState('')
   const [showLeaveModal,   setShowLeaveModal]    = useState(false)
   const [leaveLoading,     setLeaveLoading]      = useState(false)
+  const [gcalLoading,      setGcalLoading]       = useState(false)
+
+  // Handle ?gcal= query param from Google OAuth callback
+  useEffect(() => {
+    const gcal = searchParams.get('gcal')
+    if (!gcal) return
+    setSearchParams({}, { replace: true })
+    if (gcal === 'connected') {
+      toast('Google Calendar connected', 'success')
+      setTab('profile')
+      // Reload user to pick up google_calendar_connected: true
+      if (user) {
+        supabase.from('users').select('*').eq('id', user.id).single()
+          .then(({ data }) => { if (data) setUser(data as DBUser) })
+      }
+    } else if (gcal === 'error') {
+      toast('Could not connect Google Calendar — please try again', 'error')
+      setTab('profile')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch auth email on mount
   useEffect(() => {
@@ -171,6 +193,32 @@ export function SettingsScreen() {
       setUser({ ...user, display_name: displayName.trim() })
       toast('Name updated', 'success')
     }
+  }
+
+  async function connectGoogleCalendar() {
+    setGcalLoading(true)
+    const { data, error } = await supabase.functions.invoke('google-oauth-url')
+    setGcalLoading(false)
+    if (error || !data?.url) {
+      toast('Could not start Google authorization', 'error')
+      return
+    }
+    window.location.href = data.url
+  }
+
+  async function disconnectGoogleCalendar() {
+    if (!user) return
+    setGcalLoading(true)
+    const { error } = await supabase.from('users').update({
+      google_access_token:       null,
+      google_refresh_token:      null,
+      google_token_expiry:       null,
+      google_calendar_connected: false,
+    }).eq('id', user.id)
+    setGcalLoading(false)
+    if (error) { toast('Could not disconnect', 'error'); return }
+    setUser({ ...user, google_calendar_connected: false })
+    toast('Google Calendar disconnected', 'success')
   }
 
   async function leaveTeam() {
@@ -723,6 +771,76 @@ export function SettingsScreen() {
               ) : (
                 <div style={{ height: 60, background: 'var(--bg-hover)', borderRadius: 6 }} />
               )}
+            </Card>
+
+            {/* Integrations */}
+            <Card>
+              <SectionTitle>Integrations</SectionTitle>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                {/* Left: icon + labels */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {/* Google "G" logo */}
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.68 8.18c0-.57-.05-1.12-.14-1.64H8v3.1h4.31a3.68 3.68 0 01-1.6 2.42v2h2.58c1.51-1.39 2.39-3.44 2.39-5.88z" fill="#4285F4"/>
+                    <path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.58-2a4.8 4.8 0 01-7.15-2.52H.88v2.07A8 8 0 008 16z" fill="#34A853"/>
+                    <path d="M3.56 9.54A4.83 4.83 0 013.3 8c0-.54.09-1.06.26-1.54V4.39H.88A8 8 0 000 8c0 1.29.31 2.5.88 3.61l2.68-2.07z" fill="#FBBC05"/>
+                    <path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.88 4.39L3.56 6.46A4.77 4.77 0 018 3.18z" fill="#EA4335"/>
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      Google Calendar
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 1 }}>
+                      See your meetings on the Compass calendar
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: connect / connected state */}
+                {user?.google_calendar_connected ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Connected</span>
+                    </div>
+                    <button
+                      onClick={() => void disconnectGoogleCalendar()}
+                      disabled={gcalLoading}
+                      style={{
+                        padding: '4px 10px',
+                        background: 'none',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 5,
+                        color: 'var(--text-tertiary)',
+                        fontSize: 12,
+                        cursor: gcalLoading ? 'wait' : 'pointer',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => void connectGoogleCalendar()}
+                    disabled={gcalLoading}
+                    style={{
+                      flexShrink: 0,
+                      padding: '6px 14px',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 6,
+                      color: 'var(--text-secondary)',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: gcalLoading ? 'wait' : 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                    }}
+                  >
+                    {gcalLoading ? '...' : 'Connect'}
+                  </button>
+                )}
+              </div>
             </Card>
 
             {/* Danger zone */}

@@ -21,6 +21,7 @@ import { ReportsScreen } from '@/screens/Reports'
 import { SettingsScreen } from '@/screens/Settings'
 import { DownloadScreen } from '@/screens/Download'
 import { GuideScreen } from '@/screens/Guide'
+import { GoogleAuthCallback } from '@/screens/GoogleAuthCallback'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -102,6 +103,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/download" element={<DownloadScreen />} />
+        <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
         <Route path="*" element={<AuthScreen />} />
       </Routes>
     )
@@ -112,6 +114,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/download" element={<DownloadScreen />} />
+        <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
         <Route path="*" element={<AuthScreen initialStep="team" userId={user.id} />} />
       </Routes>
     )
@@ -140,8 +143,9 @@ function AppRoutes() {
             <Route path="/team"     element={<ErrorBoundary key="team"><TeamPulseScreen /></ErrorBoundary>} />
             <Route path="/reports"  element={<ErrorBoundary key="reports"><ReportsScreen /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary key="settings"><SettingsScreen /></ErrorBoundary>} />
-            <Route path="/download" element={<DownloadScreen />} />
-            <Route path="/guide"    element={<ErrorBoundary key="guide"><GuideScreen /></ErrorBoundary>} />
+            <Route path="/download"             element={<DownloadScreen />} />
+            <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
+            <Route path="/guide"                element={<ErrorBoundary key="guide"><GuideScreen /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
         </main>
