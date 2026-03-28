@@ -6,16 +6,19 @@ import {
   useTeamSessionsSummary,
   useTeamCommitmentsSummary,
   useLatestDigest,
+  useTeamMemberAppBreakdown,
 } from '@/hooks/useReports'
 import {
   formatDuration,
   formatScore,
   scoreColor,
   executionRate,
+  extractDomain,
   getWindowBounds,
+  CATEGORY_COLORS,
   type TimeWindow,
 } from '@/lib/reports'
-import type { DBUser } from '@/lib/supabase'
+import type { DBUser, ActivityCategory } from '@/lib/supabase'
 
 interface Props {
   user: DBUser
@@ -40,6 +43,7 @@ interface MemberRow {
 export function TeamTab({ user, window }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [expandedMember, setExpandedMember] = useState<string | null>(null)
   const [insights, setInsights] = useState<string>('')
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [digestLoading, setDigestLoading] = useState(false)
@@ -230,61 +234,76 @@ export function TeamTab({ user, window }: Props) {
           </thead>
           <tbody>
             {sorted.map((row, i) => (
-              <tr
-                key={row.id}
-                style={{
-                  borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
-                }}
-              >
-                <td style={{ padding: '10px 12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div
+              <>
+                <tr
+                  key={row.id}
+                  onClick={() => setExpandedMember(expandedMember === row.id ? null : row.id)}
+                  style={{
+                    borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    background: expandedMember === row.id ? 'var(--bg-hover)' : 'transparent',
+                  }}
+                >
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: row.avatarColor ?? 'var(--accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 10,
+                          color: '#fff',
+                          fontWeight: 500,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {row.name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
+                        {row.name}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 2 }}>
+                        {expandedMember === row.id ? '▴' : '▾'}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: scoreColor(row.score) }}>
+                      {formatScore(row.score)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                    {row.sessions}
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                    {formatDuration(row.deepWorkSeconds)}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span
                       style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: row.avatarColor ?? 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 10,
-                        color: '#fff',
-                        fontWeight: 500,
-                        flexShrink: 0,
+                        fontSize: 'var(--text-sm)',
+                        color: (() => {
+                          const r = executionRate(row.done, row.total)
+                          return r >= 80 ? 'var(--success)' : r >= 50 ? 'var(--warning)' : 'var(--danger)'
+                        })(),
                       }}
                     >
-                      {row.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
-                      {row.name}
+                      {row.total === 0 ? '—' : `${executionRate(row.done, row.total)}%`}
                     </span>
-                  </div>
-                </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: scoreColor(row.score) }}>
-                    {formatScore(row.score)}
-                  </span>
-                </td>
-                <td style={{ padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                  {row.sessions}
-                </td>
-                <td style={{ padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                  {formatDuration(row.deepWorkSeconds)}
-                </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span
-                    style={{
-                      fontSize: 'var(--text-sm)',
-                      color: (() => {
-                        const r = executionRate(row.done, row.total)
-                        return r >= 80 ? 'var(--success)' : r >= 50 ? 'var(--warning)' : 'var(--danger)'
-                      })(),
-                    }}
-                  >
-                    {row.total === 0 ? '—' : `${executionRate(row.done, row.total)}%`}
-                  </span>
-                </td>
-              </tr>
+                  </td>
+                </tr>
+                {expandedMember === row.id && (
+                  <tr key={`${row.id}-expand`} style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    <td colSpan={5} style={{ padding: '12px 16px 16px', background: 'var(--bg-surface)' }}>
+                      <MemberAppBreakdown memberId={row.id} window={window} />
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
             {sorted.length === 0 && (
               <tr>
@@ -435,6 +454,98 @@ export function TeamTab({ user, window }: Props) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Per-member app breakdown (inline in expanded row) ─────────────
+
+function MemberAppBreakdown({ memberId, window }: { memberId: string; window: TimeWindow }) {
+  const { data, isLoading } = useTeamMemberAppBreakdown(memberId, window)
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', gap: 8 }}>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton" style={{ height: 12, flex: 1, borderRadius: 4 }} />
+        ))}
+      </div>
+    )
+  }
+
+  // Aggregate by app/domain
+  const byApp = new Map<string, { seconds: number; category: ActivityCategory }>()
+  for (const ev of data ?? []) {
+    const s = ev.duration_seconds ?? 0
+    if (s <= 0) continue
+    const key = ev.tab_url ? extractDomain(ev.tab_url) : (ev.app_name ?? 'Unknown')
+    const existing = byApp.get(key)
+    if (existing) {
+      existing.seconds += s
+    } else {
+      byApp.set(key, { seconds: s, category: ev.category as ActivityCategory })
+    }
+  }
+
+  const sorted = Array.from(byApp.entries())
+    .sort((a, b) => b[1].seconds - a[1].seconds)
+    .slice(0, 10)
+
+  const maxSec = sorted[0]?.[1]?.seconds ?? 0
+
+  if (sorted.length === 0) {
+    return (
+      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+        No activity data for this period
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 2 }}>
+        App breakdown
+      </div>
+      {sorted.map(([label, { seconds, category }]) => (
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 2,
+              background: CATEGORY_COLORS[category],
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)',
+              width: 140,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {label}
+          </span>
+          <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--bg-active)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${maxSec > 0 ? (seconds / maxSec) * 100 : 0}%`,
+                background: CATEGORY_COLORS[category],
+                borderRadius: 2,
+                opacity: 0.7,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0, minWidth: 36, textAlign: 'right' }}>
+            {formatDuration(seconds)}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }

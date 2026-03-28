@@ -6,6 +6,7 @@ import { BestFocusWindowsCard } from '@/components/reports/BestFocusWindowsCard'
 import { SessionsCard } from '@/components/reports/SessionsCard'
 import { CommitmentsCard } from '@/components/reports/CommitmentsCard'
 import { TopDistractionsCard } from '@/components/reports/TopDistractionsCard'
+import { AppBreakdownCard } from '@/components/reports/AppBreakdownCard'
 import { TeamTab } from '@/components/reports/TeamTab'
 import { getWindowBounds, type TimeWindow } from '@/lib/reports'
 
@@ -120,8 +121,17 @@ export function ReportsScreen() {
             <CommitmentsCard userId={user.id} window={window} />
           </div>
 
-          {/* Row 4: Top distractions (full width) */}
-          <TopDistractionsCard userId={user.id} window={window} />
+          {/* Row 4: App breakdown + Top distractions */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 'var(--space-5)',
+            }}
+          >
+            <AppBreakdownCard userId={user.id} window={window} />
+            <TopDistractionsCard userId={user.id} window={window} />
+          </div>
         </div>
       )}
 

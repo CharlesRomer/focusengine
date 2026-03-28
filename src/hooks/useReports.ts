@@ -36,7 +36,7 @@ export function useActivityLast30Days(userId: string) {
         .from('activity_events')
         .select('started_at, duration_seconds, category')
         .eq('user_id', userId)
-        .eq('category', 'deep_work')
+        .neq('category', 'idle')
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString())
         .not('duration_seconds', 'is', null)
@@ -118,6 +118,49 @@ export function useCommitmentsInWindow(userId: string, window: TimeWindow) {
         .order('date', { ascending: true })
       if (error) throw error
       return (data ?? []) as DBCommitment[]
+    },
+    staleTime: STALE,
+  })
+}
+
+// ── Per-app breakdown ─────────────────────────────────────────────
+export function useAppBreakdown(userId: string, window: TimeWindow) {
+  const { start, end } = getWindowBounds(window)
+  return useQuery({
+    queryKey: ['app-breakdown', userId, start.toISOString(), end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('activity_events')
+        .select('app_name, bundle_id, tab_url, category, duration_seconds')
+        .eq('user_id', userId)
+        .neq('category', 'idle')
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString())
+        .not('duration_seconds', 'is', null)
+      if (error) throw error
+      return (data ?? []) as Pick<DBActivityEvent, 'app_name' | 'bundle_id' | 'tab_url' | 'category' | 'duration_seconds'>[]
+    },
+    staleTime: STALE,
+  })
+}
+
+// ── Per-app breakdown for a specific team member ──────────────────
+export function useTeamMemberAppBreakdown(memberId: string | null, window: TimeWindow) {
+  const { start, end } = getWindowBounds(window)
+  return useQuery({
+    queryKey: ['app-breakdown-member', memberId, start.toISOString(), end.toISOString()],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('activity_events')
+        .select('app_name, bundle_id, tab_url, category, duration_seconds')
+        .eq('user_id', memberId!)
+        .neq('category', 'idle')
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString())
+        .not('duration_seconds', 'is', null)
+      if (error) throw error
+      return (data ?? []) as Pick<DBActivityEvent, 'app_name' | 'bundle_id' | 'tab_url' | 'category' | 'duration_seconds'>[]
     },
     staleTime: STALE,
   })

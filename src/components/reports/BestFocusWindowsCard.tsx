@@ -35,7 +35,7 @@ export function BestFocusWindowsCard({ userId }: Props) {
   return (
     <ReportCard
       title="Best focus windows"
-      subtitle="Deep work intensity — last 30 days"
+      subtitle="Activity intensity — last 30 days"
       loading={isLoading}
       empty={empty}
     >

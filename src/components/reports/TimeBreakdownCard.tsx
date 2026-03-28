@@ -25,8 +25,8 @@ export function TimeBreakdownCard({ userId, window }: Props) {
     byCategory.set(ev.category, (byCategory.get(ev.category) ?? 0) + s)
   }
 
-  // Exclude idle + untracked from display but keep for total
-  const displayCategories: ActivityCategory[] = ['deep_work', 'meeting', 'communication', 'off_task']
+  // Show all categories except idle
+  const displayCategories: ActivityCategory[] = ['deep_work', 'meeting', 'communication', 'off_task', 'untracked']
   const chartData = displayCategories
     .map((cat) => ({ cat, seconds: byCategory.get(cat) ?? 0 }))
     .filter((d) => d.seconds > 0)
