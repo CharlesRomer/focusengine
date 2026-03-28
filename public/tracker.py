@@ -1,110 +1,105 @@
 #!/usr/bin/env python3
 """
 Compass macOS Activity Tracker
-Runs as a background process, auto-starts via LaunchAgent.
-Requires: pyobjc-framework-Cocoa, schedule, requests
+Tracks time spent in each app/tab by detecting switches.
+Sends completed sessions to Supabase every 10 minutes.
+Requires: pyobjc-framework-Cocoa, requests
 """
 
 import json
-import os
 import sqlite3
 import time
 import subprocess
 import uuid
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-import schedule
 
 # ── Config ────────────────────────────────────────────────────────
-CONFIG_DIR = Path.home() / '.compass'
+CONFIG_DIR  = Path.home() / '.compass'
 CONFIG_FILE = CONFIG_DIR / 'config.json'
-DB_FILE = CONFIG_DIR / 'events.db'
-SUPABASE_URL  = None
-ANON_KEY      = None  # Supabase anon key — used for API auth
-AGENT_TOKEN   = None  # agent_token from users table — sent as x-agent-token header
-USER_ID       = None
-SESSION_ID    = None  # polled from users.active_session_id
+DB_FILE     = CONFIG_DIR / 'sessions.db'
 
-IDLE_THRESHOLD_SECONDS = 300  # 5 minutes
-SESSION_POLL_INTERVAL  = 30   # seconds between active_session_id polls
+SUPABASE_URL = None
+ANON_KEY     = None
+AGENT_TOKEN  = None
+USER_ID      = None
+SESSION_ID   = None  # active focus session id (polled every 30s)
 
-# ── SQLite local buffer ───────────────────────────────────────────
+POLL_INTERVAL        = 5    # seconds between app/tab checks
+SESSION_POLL_SECS    = 30   # seconds between active_session_id polls
+FLUSH_INTERVAL_SECS  = 600  # send to Supabase every 10 minutes
+IDLE_THRESHOLD_SECS  = 300  # 5 minutes idle = close current session
+
+# ── Current session state ─────────────────────────────────────────
+_cur = {
+    'app_name':   None,
+    'bundle_id':  None,
+    'tab_url':    None,
+    'tab_title':  None,
+    'started_at': None,
+}
+_pending   = []   # completed sessions waiting to flush
+_last_flush        = time.time()
+_last_session_poll = 0.0
+
+# ── SQLite offline buffer ─────────────────────────────────────────
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     conn.execute('''
-        CREATE TABLE IF NOT EXISTS pending_events (
-            id TEXT PRIMARY KEY,
-            payload TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS pending_sessions (
+            id         TEXT PRIMARY KEY,
+            payload    TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            attempts INTEGER DEFAULT 0
+            attempts   INTEGER DEFAULT 0
         )
     ''')
     conn.commit()
     conn.close()
 
-def buffer_event(payload: dict):
+def buffer_to_disk(sessions: list):
     conn = sqlite3.connect(DB_FILE)
-    conn.execute(
-        'INSERT INTO pending_events (id, payload, created_at) VALUES (?, ?, ?)',
-        (str(uuid.uuid4()), json.dumps(payload), datetime.now(timezone.utc).isoformat())
-    )
+    for s in sessions:
+        conn.execute(
+            'INSERT OR IGNORE INTO pending_sessions (id, payload, created_at) VALUES (?, ?, ?)',
+            (str(uuid.uuid4()), json.dumps(s), datetime.now(timezone.utc).isoformat())
+        )
     conn.commit()
     conn.close()
 
-def flush_buffer():
-    """Attempt to send buffered events to Supabase."""
+def flush_disk_buffer():
     conn = sqlite3.connect(DB_FILE)
     rows = conn.execute(
-        'SELECT id, payload FROM pending_events WHERE attempts < 5 ORDER BY created_at LIMIT 50'
+        'SELECT id, payload FROM pending_sessions WHERE attempts < 5 ORDER BY created_at LIMIT 100'
     ).fetchall()
     conn.close()
-
     if not rows:
         return
-
     headers = _auth_headers()
     if not headers:
         return
-
     for row_id, payload_str in rows:
-        payload = json.loads(payload_str)
-        try:
-            r = requests.post(
-                f"{SUPABASE_URL}/rest/v1/raw_events",
-                headers=headers,
-                json=payload,
-                timeout=5
-            )
-            if r.status_code in (200, 201):
-                conn = sqlite3.connect(DB_FILE)
-                conn.execute('DELETE FROM pending_events WHERE id = ?', (row_id,))
-                conn.commit()
-                conn.close()
-            else:
-                _increment_attempts(row_id)
-        except Exception:
-            _increment_attempts(row_id)
+        ok = _send_session(json.loads(payload_str), headers)
+        conn = sqlite3.connect(DB_FILE)
+        if ok:
+            conn.execute('DELETE FROM pending_sessions WHERE id = ?', (row_id,))
+        else:
+            conn.execute('UPDATE pending_sessions SET attempts = attempts + 1 WHERE id = ?', (row_id,))
+        conn.commit()
+        conn.close()
 
-def _increment_attempts(row_id: str):
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute('UPDATE pending_events SET attempts = attempts + 1 WHERE id = ?', (row_id,))
-    conn.commit()
-    conn.close()
-
-# ── Config loading ────────────────────────────────────────────────
-def load_config():
+# ── Config + auth ─────────────────────────────────────────────────
+def load_config() -> bool:
     global SUPABASE_URL, ANON_KEY, AGENT_TOKEN, USER_ID
     if not CONFIG_FILE.exists():
         return False
     with open(CONFIG_FILE) as f:
-        config = json.load(f)
-    SUPABASE_URL = config.get('supabase_url')
-    ANON_KEY     = config.get('anon_key')
-    AGENT_TOKEN  = config.get('token')
-    USER_ID      = config.get('user_id')
+        c = json.load(f)
+    SUPABASE_URL = c.get('supabase_url')
+    ANON_KEY     = c.get('anon_key')
+    AGENT_TOKEN  = c.get('token')
+    USER_ID      = c.get('user_id')
     return bool(SUPABASE_URL and ANON_KEY and AGENT_TOKEN and USER_ID)
 
 def _auth_headers():
@@ -118,9 +113,77 @@ def _auth_headers():
         'Prefer':        'return=minimal',
     }
 
+# ── macOS helpers ─────────────────────────────────────────────────
+def get_frontmost_app() -> dict:
+    try:
+        from AppKit import NSWorkspace
+        app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        return {'app_name': app.localizedName(), 'bundle_id': app.bundleIdentifier()}
+    except Exception:
+        return {'app_name': None, 'bundle_id': None}
+
+BROWSER_BUNDLES = {'com.google.Chrome', 'com.apple.Safari', 'org.mozilla.firefox', 'com.microsoft.edgemac'}
+
+def get_browser_tab(bundle_id: str) -> dict:
+    scripts = {
+        'com.google.Chrome':  'tell application "Google Chrome" to if (count of windows)>0 then return (URL of active tab of front window)&"\n"&(title of active tab of front window)',
+        'com.apple.Safari':   'tell application "Safari" to if (count of windows)>0 then return (URL of current tab of front window)&"\n"&(name of current tab of front window)',
+        'com.microsoft.edgemac': 'tell application "Microsoft Edge" to if (count of windows)>0 then return (URL of active tab of front window)&"\n"&(title of active tab of front window)',
+    }
+    script = scripts.get(bundle_id)
+    if not script:
+        return {'tab_url': None, 'tab_title': None}
+    try:
+        r = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=2)
+        parts = r.stdout.strip().split('\n', 1)
+        return {
+            'tab_url':   parts[0] if parts else None,
+            'tab_title': parts[1] if len(parts) > 1 else None,
+        }
+    except Exception:
+        return {'tab_url': None, 'tab_title': None}
+
+def get_idle_seconds() -> float:
+    try:
+        r = subprocess.run(['ioreg', '-c', 'IOHIDSystem'], capture_output=True, text=True, timeout=2)
+        for line in r.stdout.split('\n'):
+            if 'HIDIdleTime' in line:
+                return int(line.split('=')[-1].strip()) / 1_000_000_000
+    except Exception:
+        pass
+    return 0.0
+
+# ── Session management ────────────────────────────────────────────
+def _close_current(now: datetime):
+    """Close the current session and add to pending list."""
+    if not _cur['started_at'] or not _cur['app_name']:
+        return
+    duration = (now - _cur['started_at']).total_seconds()
+    if duration < 2:
+        return
+    _pending.append({
+        'user_id':          USER_ID,
+        'team_org_id':      None,   # filled server-side if needed
+        'app_name':         _cur['app_name'],
+        'bundle_id':        _cur['bundle_id'],
+        'tab_url':          _cur['tab_url'],
+        'tab_title':        _cur['tab_title'],
+        'started_at':       _cur['started_at'].isoformat(),
+        'ended_at':         now.isoformat(),
+        'duration_seconds': int(duration),
+        'session_id':       SESSION_ID,
+        'category':         'untracked',
+    })
+
+def _start_session(now: datetime, app_name, bundle_id, tab_url, tab_title):
+    _cur['app_name']   = app_name
+    _cur['bundle_id']  = bundle_id
+    _cur['tab_url']    = tab_url
+    _cur['tab_title']  = tab_title
+    _cur['started_at'] = now
+
 # ── Active session polling ────────────────────────────────────────
 def poll_active_session():
-    """Fetch users.active_session_id from Supabase every 30 s."""
     global SESSION_ID
     headers = _auth_headers()
     if not headers or not USER_ID:
@@ -132,158 +195,125 @@ def poll_active_session():
             params={'id': f'eq.{USER_ID}', 'select': 'active_session_id'},
             timeout=5,
         )
-        if r.status_code == 200:
-            rows = r.json()
-            if rows:
-                SESSION_ID = rows[0].get('active_session_id')
+        if r.status_code == 200 and r.json():
+            SESSION_ID = r.json()[0].get('active_session_id')
     except Exception:
         pass
 
-# ── macOS activity detection ──────────────────────────────────────
-def get_frontmost_app() -> dict:
-    """Get frontmost app name and bundle ID via NSWorkspace."""
-    try:
-        from AppKit import NSWorkspace
-        app = NSWorkspace.sharedWorkspace().frontmostApplication()
-        return {
-            'app_name': app.localizedName(),
-            'bundle_id': app.bundleIdentifier(),
-        }
-    except Exception:
-        return {'app_name': None, 'bundle_id': None}
+# ── Send sessions to Supabase ─────────────────────────────────────
+def _send_session(payload: dict, headers: dict) -> bool:
+    """Send one session to activity_events. Returns True on success."""
+    # Look up team_org_id if not set
+    if not payload.get('team_org_id'):
+        try:
+            r = requests.get(
+                f"{SUPABASE_URL}/rest/v1/users",
+                headers={**headers, 'Accept': 'application/json'},
+                params={'id': f'eq.{USER_ID}', 'select': 'team_org_id'},
+                timeout=5,
+            )
+            if r.status_code == 200 and r.json():
+                payload['team_org_id'] = r.json()[0].get('team_org_id')
+        except Exception:
+            pass
 
-BROWSER_BUNDLES = {
-    'com.google.Chrome', 'com.apple.Safari',
-    'org.mozilla.firefox', 'com.microsoft.edgemac',
-}
+    if not payload.get('team_org_id'):
+        return False
 
-def get_browser_tab(bundle_id: str) -> dict:
-    """Get active tab title and URL via AppleScript."""
-    scripts = {
-        'com.google.Chrome': '''
-            tell application "Google Chrome"
-                if (count of windows) > 0 then
-                    set t to title of active tab of front window
-                    set u to URL of active tab of front window
-                    return t & "\n" & u
-                end if
-            end tell
-        ''',
-        'com.apple.Safari': '''
-            tell application "Safari"
-                if (count of windows) > 0 then
-                    set t to name of current tab of front window
-                    set u to URL of current tab of front window
-                    return t & "\n" & u
-                end if
-            end tell
-        ''',
-        'org.mozilla.firefox': '''
-            tell application "Firefox"
-                if (count of windows) > 0 then
-                    return name of front window & "\n"
-                end if
-            end tell
-        ''',
-        'com.microsoft.edgemac': '''
-            tell application "Microsoft Edge"
-                if (count of windows) > 0 then
-                    set t to title of active tab of front window
-                    set u to URL of active tab of front window
-                    return t & "\n" & u
-                end if
-            end tell
-        ''',
-    }
-    script = scripts.get(bundle_id)
-    if not script:
-        return {'tab_title': None, 'tab_url': None}
-    try:
-        result = subprocess.run(
-            ['osascript', '-e', script],
-            capture_output=True, text=True, timeout=2
-        )
-        lines = result.stdout.strip().split('\n')
-        return {
-            'tab_title': lines[0] if len(lines) > 0 else None,
-            'tab_url': lines[1] if len(lines) > 1 else None,
-        }
-    except Exception:
-        return {'tab_title': None, 'tab_url': None}
-
-def is_user_idle() -> bool:
-    """Check if user has been idle for more than IDLE_THRESHOLD_SECONDS."""
-    try:
-        result = subprocess.run(
-            ['ioreg', '-c', 'IOHIDSystem'],
-            capture_output=True, text=True, timeout=2
-        )
-        for line in result.stdout.split('\n'):
-            if 'HIDIdleTime' in line:
-                idle_ns = int(line.split('=')[-1].strip())
-                idle_seconds = idle_ns / 1_000_000_000
-                return idle_seconds > IDLE_THRESHOLD_SECONDS
-    except Exception:
-        pass
-    return False
-
-# ── Main tracking loop ────────────────────────────────────────────
-def track():
-    """Called every 10 seconds."""
-    if not load_config():
-        return  # no token, skip
-
-    idle = is_user_idle()
-    app_info = get_frontmost_app()
-    tab_info = {'tab_title': None, 'tab_url': None}
-
-    if not idle and app_info['bundle_id'] in BROWSER_BUNDLES:
-        tab_info = get_browser_tab(app_info['bundle_id'])
-
-    payload = {
-        'user_id':    USER_ID,
-        'app_name':   app_info['app_name'],
-        'bundle_id':  app_info['bundle_id'],
-        'tab_title':  tab_info['tab_title'],
-        'tab_url':    tab_info['tab_url'],
-        'is_idle':    idle,
-        'session_id': SESSION_ID,
-        'recorded_at': datetime.now(timezone.utc).isoformat(),
-    }
-
-    headers = _auth_headers()
-    if not headers:
-        buffer_event(payload)
-        return
-
+    # Remove keys not in activity_events schema
+    data = {k: v for k, v in payload.items() if k in (
+        'user_id', 'team_org_id', 'app_name', 'bundle_id',
+        'tab_url', 'tab_title', 'started_at', 'ended_at',
+        'duration_seconds', 'session_id', 'category',
+    )}
     try:
         r = requests.post(
-            f"{SUPABASE_URL}/rest/v1/raw_events",
-            headers=headers,
-            json=payload,
-            timeout=5
+            f"{SUPABASE_URL}/rest/v1/activity_events",
+            headers=headers, json=data, timeout=5,
         )
-        if r.status_code not in (200, 201):
-            buffer_event(payload)
+        return r.status_code in (200, 201)
     except Exception:
-        buffer_event(payload)
+        return False
 
+def flush_pending():
+    """Send all pending sessions to Supabase. Buffer failures to disk."""
+    global _pending
+    if not _pending:
+        return
+    headers = _auth_headers()
+    if not headers:
+        buffer_to_disk(_pending)
+        _pending = []
+        return
+
+    failed = []
+    for session in _pending:
+        if not _send_session(session, headers):
+            failed.append(session)
+
+    if failed:
+        buffer_to_disk(failed)
+
+    _pending = []
+    flush_disk_buffer()  # retry previously failed sessions too
+
+# ── Main loop ─────────────────────────────────────────────────────
 def main():
+    global _last_flush, _last_session_poll
+
     CONFIG_DIR.mkdir(exist_ok=True)
     init_db()
 
-    print(f"[compass-tracker] Starting. Config: {CONFIG_FILE}")
+    if not load_config():
+        print('[compass-tracker] No config found at ~/.compass/config.json — exiting.')
+        return
 
-    schedule.every(10).seconds.do(track)
-    schedule.every(30).seconds.do(poll_active_session)
-    schedule.every(60).seconds.do(flush_buffer)
+    print(f'[compass-tracker] Started. Polling every {POLL_INTERVAL}s, flushing every {FLUSH_INTERVAL_SECS//60}min.')
 
-    # Prime session on startup
     poll_active_session()
+    _last_session_poll = time.time()
 
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        now = datetime.now(timezone.utc)
+        t   = time.time()
+
+        # Poll active session every 30s
+        if t - _last_session_poll >= SESSION_POLL_SECS:
+            poll_active_session()
+            _last_session_poll = t
+
+        idle_secs = get_idle_seconds()
+        is_idle   = idle_secs >= IDLE_THRESHOLD_SECS
+
+        if is_idle:
+            # Close current session when user goes idle
+            if _cur['app_name'] and _cur['app_name'] != '__idle__':
+                _close_current(now)
+                _start_session(now, '__idle__', None, None, None)
+        else:
+            app  = get_frontmost_app()
+            app_name  = app['app_name']
+            bundle_id = app['bundle_id']
+            tab_url, tab_title = None, None
+
+            if bundle_id in BROWSER_BUNDLES:
+                tab = get_browser_tab(bundle_id)
+                tab_url   = tab['tab_url']
+                tab_title = tab['tab_title']
+
+            # Detect app or tab switch
+            if (app_name != _cur['app_name'] or tab_url != _cur['tab_url']):
+                _close_current(now)
+                _start_session(now, app_name, bundle_id, tab_url, tab_title)
+
+        # Flush to Supabase every 10 minutes
+        if t - _last_flush >= FLUSH_INTERVAL_SECS:
+            _close_current(now)  # snapshot current session before flush
+            _start_session(now, _cur['app_name'], _cur['bundle_id'], _cur['tab_url'], _cur['tab_title'])
+            flush_pending()
+            _last_flush = t
+
+        time.sleep(POLL_INTERVAL)
 
 if __name__ == '__main__':
     main()

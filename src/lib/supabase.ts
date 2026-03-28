@@ -94,8 +94,11 @@ export interface DBActivityEvent {
   id: string
   user_id: string
   team_org_id: string
-  raw_event_id: string
+  raw_event_id: string | null
   app_name: string | null
+  bundle_id: string | null
+  tab_url: string | null
+  tab_title: string | null
   category: ActivityCategory
   started_at: string
   ended_at: string | null

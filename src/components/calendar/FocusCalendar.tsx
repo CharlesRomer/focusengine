@@ -23,7 +23,17 @@ import { supabase } from '@/lib/supabase'
 import type { DBFocusSession } from '@/lib/supabase'
 import { todayLocal } from '@/lib/time'
 import { toast } from '@/store/ui'
-import { CATEGORY_COLORS } from '@/lib/categorize'
+// ── App color hash ─────────────────────────────────────────────────
+const APP_COLORS = [
+  '#4f8ef7', '#7c6af7', '#e06b6b', '#55c9a0', '#e0a84b',
+  '#5fc4d0', '#c96be0', '#7acc55', '#e07b4b', '#6b9de0',
+]
+function appColor(appName: string | null): string {
+  if (!appName) return '#888'
+  let h = 0
+  for (let i = 0; i < appName.length; i++) h = (h * 31 + appName.charCodeAt(i)) >>> 0
+  return APP_COLORS[h % APP_COLORS.length]
+}
 
 // ── Helpers ───────────────────────────────────────────────────────
 function addMinutesToTime(timeStr: string, mins: number): string {
@@ -230,7 +240,7 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
   // Activity hover tooltip
   const [activityTooltip, setActivityTooltip] = useState<{
     x: number; y: number
-    appName: string | null; category: string; durationSecs: number | null
+    appName: string | null; tabTitle: string | null; durationSecs: number | null
   } | null>(null)
 
   const calendarRef = useRef<FullCalendar>(null)
@@ -338,9 +348,9 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
   // ── Activity event hover tooltip ─────────────────────────────
   function handleEventMouseEnter(info: EventHoveringArg) {
     if (!info.event.id.startsWith('activity-')) return
-    const { appName, category, durationSecs } = info.event.extendedProps
+    const { appName, tabTitle, durationSecs } = info.event.extendedProps
     const rect = info.el.getBoundingClientRect()
-    setActivityTooltip({ x: rect.right + 8, y: rect.top, appName, category, durationSecs })
+    setActivityTooltip({ x: rect.right + 8, y: rect.top, appName, tabTitle, durationSecs })
   }
 
   function handleEventMouseLeave(info: EventHoveringArg) {
@@ -488,11 +498,11 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
     start:           ev.started_at,
     end:             ev.ended_at ?? ev.started_at,
     display:         'background' as const,
-    backgroundColor: CATEGORY_COLORS[ev.category] ?? 'var(--cat-idle)',
+    backgroundColor: appColor(ev.app_name),
     editable:        false,
     extendedProps:   {
       appName:      ev.app_name,
-      category:     ev.category,
+      tabTitle:     ev.tab_title,
       durationSecs: ev.duration_seconds,
     },
   }))
@@ -578,16 +588,12 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
 
       {/* Activity event hover tooltip */}
       {activityTooltip && (() => {
-        const { x, y, appName, category, durationSecs } = activityTooltip
+        const { x, y, appName, tabTitle, durationSecs } = activityTooltip
         const vw   = window.innerWidth
-        const W    = 180
+        const W    = 220
         const left = x + W > vw - 8 ? x - W - 16 : x
-        const mins = durationSecs ? Math.round(durationSecs / 60) : null
-        const categoryLabel: Record<string, string> = {
-          deep_work: 'Deep work', meeting: 'Meeting',
-          communication: 'Communication', off_task: 'Off task',
-          idle: 'Idle', untracked: 'Untracked',
-        }
+        const secs = durationSecs ?? 0
+        const mins = secs >= 60 ? `${Math.round(secs / 60)}m` : `${secs}s`
         return (
           <div
             style={{
@@ -600,14 +606,19 @@ export function FocusCalendar({ showToolbar = true, initialView = 'timeGridDay' 
             }}
           >
             {appName && (
-              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 3,
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {appName}
               </div>
             )}
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {categoryLabel[category] ?? category}
-              {mins !== null && ` · ${mins}m`}
+            {tabTitle && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {tabTitle}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {mins}
             </div>
           </div>
         )
