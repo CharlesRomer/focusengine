@@ -62,8 +62,6 @@ export type DBSubProjectTask = {
   is_complete: boolean
   sort_order: number
   proof_url: string | null
-  notion_page_id: string | null
-  notion_synced_at: string | null
   created_at: string
   updated_at: string
 }

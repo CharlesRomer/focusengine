@@ -3,14 +3,6 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
 import { toast } from '@/store/ui'
 
-// Fire-and-forget Notion sync — only attempted if user has notion_connected
-async function syncToNotion(taskId: string, action: 'upsert' | 'delete') {
-  try {
-    await supabase.functions.invoke('notion-sync', { body: { taskId, action } })
-  } catch {
-    // Silently ignore Notion sync errors
-  }
-}
 
 function invalidateBoard(qc: ReturnType<typeof useQueryClient>, projectId: string) {
   qc.invalidateQueries({ queryKey: ['board-data', projectId] })
@@ -225,8 +217,6 @@ export function useCreateTask(projectId: string) {
         toast('Failed to add task', 'error')
         throw error
       }
-      // Fire-and-forget Notion sync — function returns 503 if Notion secrets not set
-      void syncToNotion(id, 'upsert')
       return id
     },
     onSuccess: () => invalidateBoard(qc, projectId),
@@ -244,7 +234,6 @@ export function useUpdateTask(projectId: string) {
         toast('Failed to update task', 'error')
         throw error
       }
-      void syncToNotion(id, 'upsert')
     },
     onSuccess: () => invalidateBoard(qc, projectId),
   })

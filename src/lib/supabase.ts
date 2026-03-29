@@ -26,7 +26,6 @@ export interface DBUser {
   active_session_id: string | null
   created_at: string
   google_calendar_connected: boolean | null
-  notion_connected: boolean
 }
 
 export interface DBTeam {
