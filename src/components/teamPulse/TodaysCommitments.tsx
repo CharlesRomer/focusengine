@@ -116,7 +116,7 @@ function MemberColumn({
     if (e.key !== 'Enter') return
     const trimmed = addText.trim()
     if (!trimmed) return
-    addCommitment.mutate(trimmed)
+    addCommitment.mutate({ text: trimmed })
     setAddText('')
   }
 

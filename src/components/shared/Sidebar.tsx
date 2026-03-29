@@ -9,6 +9,7 @@ const icons = {
   calendar:<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 2v2M11 2v2M2 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="currentColor"/></svg>,
   team:    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M1 13c0-2.761 2.239-4 5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="11" cy="6" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M10 13c0-2 1.343-3.5 3-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   reports: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 13V9M7 13V6M11 13V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  board:   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/></svg>,
   settings:<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8 10a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" strokeWidth="1.5"/><path d="M8 2v1.5M8 12.5V14M14 8h-1.5M3.5 8H2M12.2 3.8l-1.06 1.06M4.86 11.14L3.8 12.2M12.2 12.2l-1.06-1.06M4.86 4.86L3.8 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   guide:   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5"/><path d="M10 2v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
 }
@@ -63,6 +64,7 @@ export function Sidebar() {
         </div>
         <NavItem to="/calendar" icon={icons.calendar} label="Calendar" shortcut="⌘2" />
         <NavItem to="/team" icon={icons.team} label="Team Pulse" shortcut="⌘3" />
+        <NavItem to="/board" icon={icons.board} label="Board" />
         <NavItem to="/reports" icon={icons.reports} label="Reports" shortcut="⌘4" />
         <div className="mt-auto pt-3 border-t" style={{ borderColor: 'var(--border-subtle)', marginTop: 'auto' }}>
           <NavItem to="/guide"    icon={icons.guide}    label="Guide" />

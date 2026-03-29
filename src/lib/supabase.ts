@@ -48,6 +48,7 @@ export interface DBCommitment {
   proof_type: 'image' | 'url' | null
   incomplete_reason: string | null
   horizon_tag: string | null
+  sub_project_id: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null

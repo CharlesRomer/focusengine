@@ -2,6 +2,9 @@
 
 ## In Progress
 - [ ] Verify proof upload to Supabase Storage works end-to-end
+- [ ] Run migrations 013 + 014 in Supabase SQL Editor (project board + commitment sub_project_id)
+- [ ] Deploy notion-sync edge function (supabase functions deploy notion-sync)
+- [ ] Set Notion secrets: supabase secrets set NOTION_TOKEN=... NOTION_DATABASE_ID=...
 
 ## Backlog
 
@@ -72,6 +75,7 @@
 - Proof image upload: needs `proof-uploads` storage bucket created in Supabase dashboard
 
 ## Done
+- [x] Project Flow Board (/board) — full feature: projects, department/sub-project/blocker nodes, edges, drag, realtime, side panel, right-click menu, task management, progress rollup, Today integration, Notion edge function
 - [x] Supabase schema: all tables, RLS, indexes (migration 001)
 - [x] Auth: sign up, sign in, sign out
 - [x] Onboarding: 4-step flow (email → name → team create/join)

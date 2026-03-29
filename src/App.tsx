@@ -22,6 +22,7 @@ import { SettingsScreen } from '@/screens/Settings'
 import { DownloadScreen } from '@/screens/Download'
 import { GuideScreen } from '@/screens/Guide'
 import { GoogleAuthCallback } from '@/screens/GoogleAuthCallback'
+import { BoardScreen } from '@/screens/Board'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -177,6 +178,7 @@ function AppRoutes() {
             <Route path="/team"     element={<ErrorBoundary key="team"><TeamPulseScreen /></ErrorBoundary>} />
             <Route path="/reports"  element={<ErrorBoundary key="reports"><ReportsScreen /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary key="settings"><SettingsScreen /></ErrorBoundary>} />
+            <Route path="/board"    element={<ErrorBoundary key="board"><BoardScreen /></ErrorBoundary>} />
             <Route path="/download"             element={<DownloadScreen />} />
             <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
             <Route path="/guide"                element={<ErrorBoundary key="guide"><GuideScreen /></ErrorBoundary>} />

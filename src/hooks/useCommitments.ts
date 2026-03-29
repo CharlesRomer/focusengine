@@ -31,7 +31,7 @@ export function useAddCommitment(date?: string) {
   const targetDate = date ?? todayLocal()
 
   return useMutation({
-    mutationFn: async (text: string) => {
+    mutationFn: async ({ text, sub_project_id }: { text: string; sub_project_id?: string | null }) => {
       if (!user?.team_org_id) throw new Error('You must be in a team to add commitments')
       const { data, error } = await supabase
         .from('commitments')
@@ -40,6 +40,7 @@ export function useAddCommitment(date?: string) {
           team_org_id: user!.team_org_id,
           date: targetDate,
           text: text.trim(),
+          sub_project_id: sub_project_id ?? null,
         })
         .select()
         .single()
