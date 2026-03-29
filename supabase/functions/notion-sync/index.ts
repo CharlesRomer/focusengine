@@ -31,12 +31,13 @@ serve(async (req: Request) => {
       })
     }
 
+    // Use service role key — required to read sub_project_tasks, sub_projects, users
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    // Fetch task with joined sub_project + owner
+    // Fetch task with joined sub_project (for due_date) and owner user (for display_name)
     const { data: task, error: taskErr } = await supabase
       .from('sub_project_tasks')
       .select('*, sub_projects(name, due_date), users!sub_project_tasks_owner_id_fkey(display_name)')
@@ -44,23 +45,33 @@ serve(async (req: Request) => {
       .single()
 
     if (taskErr || !task) {
-      return new Response(JSON.stringify({ error: 'Task not found' }), {
+      console.error('[notion-sync] task fetch error:', taskErr)
+      return new Response(JSON.stringify({ error: 'Task not found', detail: taskErr?.message }), {
         status: 404,
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
 
+    // ── Delete action ─────────────────────────────────────────────────────────
+
     if (action === 'delete' && task.notion_page_id) {
-      // Archive the Notion page
-      await fetch(`https://api.notion.com/v1/pages/${task.notion_page_id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${notionToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ archived: true }),
-      })
+      try {
+        const archiveRes = await fetch(`https://api.notion.com/v1/pages/${task.notion_page_id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${notionToken}`,
+            'Notion-Version': '2022-06-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ archived: true }),
+        })
+        if (!archiveRes.ok) {
+          const body = await archiveRes.text()
+          console.error(`[notion-sync] archive failed ${archiveRes.status}:`, body)
+        }
+      } catch (err) {
+        console.error('[notion-sync] archive request error:', err)
+      }
 
       await supabase
         .from('sub_project_tasks')
@@ -72,79 +83,106 @@ serve(async (req: Request) => {
       })
     }
 
-    // Build Notion page properties
-    const properties: Record<string, unknown> = {
-      'Name': {
-        title: [{ text: { content: task.title } }],
+    // ── Upsert action ─────────────────────────────────────────────────────────
+
+    const ownerName: string | null = task.users?.display_name ?? null
+    const dueDate: string | null = task.sub_projects?.due_date ?? null
+
+    const notionPayload = {
+      parent: { database_id: notionDbId },
+      properties: {
+        Title: {
+          title: [{ text: { content: task.title } }],
+        },
+        Owner: {
+          rich_text: [{ text: { content: ownerName ?? '' } }],
+        },
+        'Due Date': dueDate ? {
+          date: { start: dueDate }, // format: 'YYYY-MM-DD'
+        } : undefined,
+        Status: {
+          select: { name: task.is_complete ? 'Done' : 'Not started' },
+        },
       },
     }
 
-    if (task.sub_projects?.name) {
-      properties['Sub-project'] = {
-        rich_text: [{ text: { content: task.sub_projects.name } }],
+    // Remove undefined properties before sending
+    Object.keys(notionPayload.properties).forEach(key => {
+      if ((notionPayload.properties as Record<string, unknown>)[key] === undefined) {
+        delete (notionPayload.properties as Record<string, unknown>)[key]
       }
-    }
+    })
 
-    if (task.sub_projects?.due_date) {
-      properties['Due date'] = {
-        date: { start: task.sub_projects.due_date },
+    let notionPageId: string | null = task.notion_page_id ?? null
+
+    try {
+      if (notionPageId) {
+        // Update existing page
+        const updateRes = await fetch(`https://api.notion.com/v1/pages/${notionPageId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${notionToken}`,
+            'Notion-Version': '2022-06-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ properties: notionPayload.properties }),
+        })
+        if (!updateRes.ok) {
+          const body = await updateRes.text()
+          console.error(`[notion-sync] page update failed ${updateRes.status}:`, body)
+          return new Response(JSON.stringify({ error: 'Notion update failed', detail: body }), {
+            status: 502,
+            headers: { ...CORS, 'Content-Type': 'application/json' },
+          })
+        }
+        console.log(`[notion-sync] updated page ${notionPageId} for task ${taskId}`)
+      } else {
+        // Create new page
+        const createRes = await fetch('https://api.notion.com/v1/pages', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${notionToken}`,
+            'Notion-Version': '2022-06-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(notionPayload),
+        })
+        if (!createRes.ok) {
+          const body = await createRes.text()
+          console.error(`[notion-sync] page create failed ${createRes.status}:`, body)
+          return new Response(JSON.stringify({ error: 'Notion create failed', detail: body }), {
+            status: 502,
+            headers: { ...CORS, 'Content-Type': 'application/json' },
+          })
+        }
+        const page = await createRes.json() as { id?: string }
+        notionPageId = page.id ?? null
+        console.log(`[notion-sync] created page ${notionPageId} for task ${taskId}`)
       }
-    }
-
-    if (task.users?.display_name) {
-      properties['Owner'] = {
-        rich_text: [{ text: { content: task.users.display_name } }],
-      }
-    }
-
-    properties['Complete'] = {
-      checkbox: task.is_complete,
-    }
-
-    let notionPageId = task.notion_page_id
-
-    if (notionPageId) {
-      // Update existing page
-      await fetch(`https://api.notion.com/v1/pages/${notionPageId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${notionToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ properties }),
+    } catch (err) {
+      console.error('[notion-sync] notion API request error:', err)
+      return new Response(JSON.stringify({ error: 'Notion request failed' }), {
+        status: 502,
+        headers: { ...CORS, 'Content-Type': 'application/json' },
       })
-    } else {
-      // Create new page
-      const res = await fetch('https://api.notion.com/v1/pages', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${notionToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          parent: { database_id: notionDbId },
-          properties,
-        }),
-      })
-      const page = await res.json() as { id?: string }
-      notionPageId = page.id ?? null
     }
 
-    // Store notion_page_id back on the task
+    // Write notion_page_id back to the task row
     if (notionPageId) {
-      await supabase
+      const { error: updateErr } = await supabase
         .from('sub_project_tasks')
         .update({ notion_page_id: notionPageId, notion_synced_at: new Date().toISOString() })
         .eq('id', taskId)
+      if (updateErr) {
+        console.error('[notion-sync] failed to write notion_page_id back:', updateErr)
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, notion_page_id: notionPageId }), {
       headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('[notion-sync] error:', err)
+    console.error('[notion-sync] unexpected error:', err)
     return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { ...CORS, 'Content-Type': 'application/json' },
