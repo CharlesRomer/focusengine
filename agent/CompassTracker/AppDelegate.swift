@@ -85,6 +85,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(updates)
 
         menu.addItem(.separator())
+
+        let testNotif = NSMenuItem(title: "⚙ Test Notification", action: #selector(fireTestNotification), keyEquivalent: "")
+        testNotif.target = self
+        menu.addItem(testNotif)
+
+        let notifStatus = NSMenuItem(title: "⚙ Notification Status…", action: #selector(showNotificationStatus), keyEquivalent: "")
+        notifStatus.target = self
+        menu.addItem(notifStatus)
+
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit CompassTracker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem.menu = menu
@@ -192,6 +202,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         handler([.banner, .sound])
+    }
+
+    // ── Debug helpers ─────────────────────────────────────────────
+
+    @objc private func fireTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Test"
+        content.body  = "Compass notifications are working."
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: "compass-debug-test", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req) { error in
+            if let error = error {
+                print("[CompassTracker] Test notification error: \(error.localizedDescription)")
+            } else {
+                print("[CompassTracker] Test notification fired")
+            }
+        }
+    }
+
+    @objc private func showNotificationStatus() {
+        let nm  = NotificationManager.shared
+        let ud  = UserDefaults.standard
+        let center = UNUserNotificationCenter.current()
+
+        center.getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                let permStr: String
+                switch settings.authorizationStatus {
+                case .authorized:       permStr = "authorized"
+                case .denied:           permStr = "denied"
+                case .notDetermined:    permStr = "not determined"
+                case .provisional:      permStr = "provisional"
+                case .ephemeral:        permStr = "ephemeral"
+                @unknown default:       permStr = "unknown"
+                }
+
+                let snoozeStr: String
+                if nm.isSnoozed(),
+                   let raw = ud.string(forKey: "compassNotifSnoozeUntil") {
+                    snoozeStr = "active until \(raw)"
+                } else {
+                    snoozeStr = "not snoozed"
+                }
+
+                func lastFired(_ key: String) -> String {
+                    ud.string(forKey: key) ?? "never"
+                }
+
+                let hour = Calendar.current.component(.hour, from: Date())
+                let inWindow = hour >= 8 && hour < 19
+
+                let msg = """
+                Permission: \(permStr)
+
+                Snooze: \(snoozeStr)
+
+                Daily count: \(ud.integer(forKey: "compassNotifDailyCount")) / 3
+
+                Last working-without-session:
+                  \(ud.double(forKey: "compassLastWorkingNotifTime") > 0 ? Date(timeIntervalSince1970: ud.double(forKey: "compassLastWorkingNotifTime")).description : "never")
+
+                Last morning check-in: \(lastFired("compassMorningCheckInDate"))
+                Last end-of-day: \(lastFired("compassEndOfDayDate"))
+
+                Current time: \(Date())
+                In window (8am–7pm): \(inWindow ? "yes" : "no")
+                """
+
+                let alert = NSAlert()
+                alert.messageText    = "Notification Status"
+                alert.informativeText = msg
+                alert.alertStyle     = .informational
+                alert.addButton(withTitle: "OK")
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     // ── Login item ────────────────────────────────────────────────
