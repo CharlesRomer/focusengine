@@ -3,8 +3,9 @@ import Foundation
 final class SupabaseClient {
     static let shared = SupabaseClient()
 
-    private var teamOrgId: String?         = nil
-    private var pending:   [ActivitySession] = []
+    private var teamOrgId:       String?           = nil
+    private var activeSessionId: String?           = nil
+    private var pending:         [ActivitySession] = []
     private let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -36,6 +37,44 @@ final class SupabaseClient {
                 self?.teamOrgId = id
                 print("[CompassTracker] team_org_id: \(id)")
                 self?.flushPending()
+            }
+        }.resume()
+    }
+
+    // ── active_session_id ─────────────────────────────────────────
+
+    /// Polls users.active_session_id every 30 s (called by TrackerEngine timer).
+    func fetchActiveSessionId() {
+        guard let cfg = KeychainHelper.loadConfig() else { return }
+
+        var comps = URLComponents(string: "\(cfg.supabaseUrl)/rest/v1/users")!
+        comps.queryItems = [
+            URLQueryItem(name: "id",     value: "eq.\(cfg.userId)"),
+            URLQueryItem(name: "select", value: "active_session_id"),
+        ]
+        var req = URLRequest(url: comps.url!)
+        addAuthHeaders(to: &req, cfg: cfg)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+            guard let data,
+                  let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let row = arr.first
+            else { return }
+
+            // active_session_id is null when no session is running
+            let sessionId = row["active_session_id"] as? String
+
+            DispatchQueue.main.async {
+                let prev = self?.activeSessionId
+                self?.activeSessionId = sessionId
+                if prev != sessionId {
+                    if let sid = sessionId {
+                        print("[CompassTracker] active_session_id: \(sid)")
+                    } else {
+                        print("[CompassTracker] active_session_id: nil (no active session)")
+                    }
+                }
             }
         }.resume()
     }
@@ -78,6 +117,11 @@ final class SupabaseClient {
         if let v = session.tabURL    { payload["tab_url"]    = v }
         if let v = session.tabTitle  { payload["tab_title"]  = v }
 
+        // Attach active session ID so focus score can be computed per-session
+        if let sid = activeSessionId {
+            payload["session_id"] = sid
+        }
+
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
 
         var req = URLRequest(url: url)
@@ -90,7 +134,7 @@ final class SupabaseClient {
         URLSession.shared.dataTask(with: req) { _, resp, _ in
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             let ok   = code == 201
-            print("[CompassTracker] \(ok ? "✓" : "✗") \(session.appName) \(session.durationSeconds)s (HTTP \(code))")
+            print("[CompassTracker] \(ok ? "✓" : "✗") \(session.appName) \(session.durationSeconds)s (HTTP \(code))\(self.activeSessionId != nil ? " session=\(self.activeSessionId!.prefix(8))" : "")")
         }.resume()
     }
 

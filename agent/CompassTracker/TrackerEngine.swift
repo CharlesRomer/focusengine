@@ -43,14 +43,16 @@ final class TrackerEngine: ObservableObject {
             handleAppSwitch(front)
         }
 
-        // Every 30 s: re-check browser tab + check idle state
+        // Every 30 s: re-check browser tab, check idle state, refresh active session ID
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             self?.checkBrowserTabChange()
             self?.checkIdleState()
+            SupabaseClient.shared.fetchActiveSessionId()
         }
 
         isTracking = true
         SupabaseClient.shared.fetchTeamOrgIdIfNeeded()
+        SupabaseClient.shared.fetchActiveSessionId()
     }
 
     func stop() {

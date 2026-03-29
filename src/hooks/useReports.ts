@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getWindowBounds, type TimeWindow } from '@/lib/reports'
-import type { DBActivityEvent, DBFocusSession, DBCommitment, DBUser } from '@/lib/supabase'
+import type { DBActivityEvent, DBFocusSession, DBCommitment, DBUser, DBAppClassification, DBQuickCapture } from '@/lib/supabase'
 
 const STALE = 5 * 60 * 1000 // 5 minutes
 
@@ -244,6 +244,88 @@ export function useTeamCommitmentsSummary(teamOrgId: string | null, window: Time
         .is('deleted_at', null)
       if (error) throw error
       return (data ?? []) as Pick<DBCommitment, 'user_id' | 'status'>[]
+    },
+    staleTime: STALE,
+  })
+}
+
+// ── Session detail queries ────────────────────────────────────────
+
+export function useSessionEvents(sessionId: string | null, sessionStarted?: string, sessionEnded?: string | null, userId?: string) {
+  return useQuery({
+    queryKey: ['session-events', sessionId],
+    enabled: !!sessionId,
+    queryFn: async () => {
+      // Try session_id first; fall back to time range
+      const { data: byId } = await supabase
+        .from('activity_events')
+        .select('*')
+        .eq('session_id', sessionId!)
+        .order('started_at', { ascending: true })
+      if (byId && byId.length > 0) return byId as DBActivityEvent[]
+
+      if (!sessionStarted || !userId) return [] as DBActivityEvent[]
+      const endAt = sessionEnded ?? new Date().toISOString()
+      const { data } = await supabase
+        .from('activity_events')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('started_at', sessionStarted)
+        .lte('started_at', endAt)
+        .neq('category', 'idle')
+        .order('started_at', { ascending: true })
+      return (data ?? []) as DBActivityEvent[]
+    },
+    staleTime: STALE,
+  })
+}
+
+export function useSessionClassifications(sessionId: string | null) {
+  return useQuery({
+    queryKey: ['session-classifications', sessionId],
+    enabled: !!sessionId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_classifications')
+        .select('*')
+        .eq('session_id', sessionId!)
+      if (error) throw error
+      return (data ?? []) as DBAppClassification[]
+    },
+    staleTime: STALE,
+  })
+}
+
+export function useSessionCaptures(sessionId: string | null) {
+  return useQuery({
+    queryKey: ['session-captures', sessionId],
+    enabled: !!sessionId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('quick_captures')
+        .select('*')
+        .eq('session_id', sessionId!)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as DBQuickCapture[]
+    },
+    staleTime: STALE,
+  })
+}
+
+export function useClassificationsInWindow(userId: string, window: TimeWindow) {
+  const { start, end } = getWindowBounds(window)
+  return useQuery({
+    queryKey: ['classifications-window', userId, start.toISOString(), end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_classifications')
+        .select('session_id, app_name, domain, classification, duration_seconds')
+        .eq('user_id', userId)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+      if (error) throw error
+      return (data ?? []) as Pick<DBAppClassification, 'session_id' | 'app_name' | 'domain' | 'classification' | 'duration_seconds'>[]
     },
     staleTime: STALE,
   })

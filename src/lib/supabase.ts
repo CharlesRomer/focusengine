@@ -107,6 +107,17 @@ export interface DBActivityEvent {
   session_id: string | null
 }
 
+export interface DBAppClassification {
+  id: string
+  session_id: string
+  user_id: string
+  app_name: string
+  domain: string | null
+  classification: 'focused' | 'distraction'
+  duration_seconds: number
+  created_at: string
+}
+
 export interface DBDailySummary {
   id: string
   user_id: string
