@@ -8,6 +8,8 @@ import { CommitmentsCard } from '@/components/reports/CommitmentsCard'
 import { TopDistractionsCard } from '@/components/reports/TopDistractionsCard'
 import { AppBreakdownCard } from '@/components/reports/AppBreakdownCard'
 import { TeamTab } from '@/components/reports/TeamTab'
+import { ProjectReportsTab } from '@/components/reports/ProjectReportsTab'
+import { useProjects } from '@/hooks/useProjects'
 import { getWindowBounds, type TimeWindow } from '@/lib/reports'
 
 const WINDOWS: { key: TimeWindow; label: string }[] = [
@@ -18,12 +20,14 @@ const WINDOWS: { key: TimeWindow; label: string }[] = [
 
 export function ReportsScreen() {
   const user = useAuthStore((s) => s.user)
-  const [activeTab, setActiveTab] = useState<'mine' | 'team'>('mine')
+  const [activeTab, setActiveTab] = useState<'mine' | 'team' | 'projects'>('mine')
   const [window, setWindow] = useState<TimeWindow>('week')
+  const { data: projects } = useProjects()
 
   if (!user) return null
 
   const isAdmin = user.role === 'admin'
+  const hasProjects = (projects?.length ?? 0) > 0
 
   return (
     <div
@@ -57,6 +61,9 @@ export function ReportsScreen() {
               Team
             </TabBtn>
           )}
+          <TabBtn active={activeTab === 'projects'} onClick={() => setActiveTab('projects')}>
+            Projects
+          </TabBtn>
         </div>
 
         {/* Time window selector */}
@@ -138,6 +145,18 @@ export function ReportsScreen() {
       {/* Team tab */}
       {activeTab === 'team' && isAdmin && (
         <TeamTab user={user} window={window} />
+      )}
+
+      {/* Projects tab */}
+      {activeTab === 'projects' && (
+        hasProjects ? (
+          <ProjectReportsTab />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
+            No projects yet.{' '}
+            <a href="/board" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Create one on the Board.</a>
+          </div>
+        )
       )}
     </div>
   )

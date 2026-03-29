@@ -169,7 +169,7 @@ export function useUpdateSubProject(projectId: string) {
         throw error
       }
     },
-    onSuccess: () => invalidateBoard(qc, projectId),
+    onSuccess: () => invalidateBoth(qc, projectId),
   })
 }
 

@@ -285,70 +285,80 @@ interface SubProjectSpanBarProps {
 }
 
 function SubProjectSpanBar({ sub, left, width, top, pxPerDay, onUpdate, onClick, onContextMenu, isDraggingThis, dragDeltaDays }: SubProjectSpanBarProps) {
-  const [resizeDelta, setResizeDelta] = useState(0)
-  const [isResizing, setIsResizing] = useState<'left' | 'right' | null>(null)
+  const [visualDelta, setVisualDelta] = useState(0)
+  const [resizeSide, setResizeSide] = useState<'left' | 'right' | null>(null)
   const resizeDeltaRef = useRef(0)
   const borderColor = STATUS_BORDER[sub.status] ?? 'var(--border-default)'
 
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `sub-${sub.id}`,
     data: { type: 'sub-span', sub },
-    disabled: isResizing !== null,
+    disabled: resizeSide !== null,
   })
 
   let displayLeft = transform ? left + transform.x : left
   let displayWidth = width
-  if (isResizing === 'right') displayWidth = Math.max(pxPerDay, width + resizeDelta)
-  if (isResizing === 'left') {
-    displayLeft = left + resizeDelta
-    displayWidth = Math.max(pxPerDay, width - resizeDelta)
+  if (resizeSide === 'right') displayWidth = Math.max(pxPerDay, width + visualDelta)
+  if (resizeSide === 'left') {
+    displayLeft = left + visualDelta
+    displayWidth = Math.max(pxPerDay, width - visualDelta)
   }
 
   const tooltipText = isDraggingThis && sub.start_date && sub.due_date
     ? `${format(addDays(parseISO(sub.start_date), dragDeltaDays), 'MMM d')} → ${format(addDays(parseISO(sub.due_date), dragDeltaDays), 'MMM d')}`
     : null
 
-  // Right resize
-  const handleRightDelta = useCallback((delta: number) => {
-    setIsResizing('right')
-    resizeDeltaRef.current = delta
-    setResizeDelta(delta)
-  }, [])
-  const handleRightEnd = useCallback(() => {
-    const delta = resizeDeltaRef.current
-    const days = Math.round(delta / pxPerDay)
-    const due = safeParseISO(sub.due_date)
-    const start = safeParseISO(sub.start_date)
-    if (due && start) {
-      const newDue = addDays(due, days)
-      const minDue = addDays(start, 1)
-      onUpdate(sub.id, { due_date: dateToStr(newDue < minDue ? minDue : newDue) })
-    }
-    resizeDeltaRef.current = 0
-    setResizeDelta(0)
-    setIsResizing(null)
-  }, [pxPerDay, sub.id, sub.start_date, sub.due_date, onUpdate])
+  const handleResizePointerDown = useCallback((side: 'left' | 'right') => (e: React.PointerEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
 
-  // Left resize
-  const handleLeftDelta = useCallback((delta: number) => {
-    setIsResizing('left')
-    resizeDeltaRef.current = delta
-    setResizeDelta(delta)
-  }, [])
-  const handleLeftEnd = useCallback(() => {
-    const delta = resizeDeltaRef.current
-    const days = Math.round(delta / pxPerDay)
-    const start = safeParseISO(sub.start_date)
-    const due = safeParseISO(sub.due_date)
-    if (start && due) {
-      const newStart = addDays(start, days)
-      const maxStart = addDays(due, -1)
-      onUpdate(sub.id, { start_date: dateToStr(newStart > maxStart ? maxStart : newStart) })
-    }
+    const startX = e.clientX
     resizeDeltaRef.current = 0
-    setResizeDelta(0)
-    setIsResizing(null)
-  }, [pxPerDay, sub.id, sub.start_date, sub.due_date, onUpdate])
+
+    setResizeSide(side)
+    setVisualDelta(0)
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const rawDelta = moveEvent.clientX - startX
+      resizeDeltaRef.current = rawDelta
+      setVisualDelta(rawDelta)
+    }
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+
+      const daysDelta = Math.round(resizeDeltaRef.current / pxPerDay)
+
+      if (daysDelta !== 0) {
+        const currentStart = parseISO(sub.start_date!)
+        const currentEnd = parseISO(sub.due_date!)
+
+        let newStart = currentStart
+        let newEnd = currentEnd
+
+        if (side === 'right') {
+          newEnd = addDays(currentEnd, daysDelta)
+          if (newEnd <= newStart) newEnd = addDays(newStart, 1)
+        } else {
+          newStart = addDays(currentStart, daysDelta)
+          if (newStart >= newEnd) newStart = addDays(newEnd, -1)
+        }
+
+        onUpdate(sub.id, {
+          start_date: format(newStart, 'yyyy-MM-dd'),
+          due_date: format(newEnd, 'yyyy-MM-dd'),
+        })
+      }
+
+      setResizeSide(null)
+      setVisualDelta(0)
+      resizeDeltaRef.current = 0
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+  }, [pxPerDay, sub, onUpdate])
 
   return (
     <div
@@ -373,13 +383,26 @@ function SubProjectSpanBar({ sub, left, width, top, pxPerDay, onUpdate, onClick,
         zIndex: transform ? 20 : 5,
         userSelect: 'none',
         boxShadow: transform ? 'var(--shadow-md)' : 'var(--shadow-sm)',
-        transition: transform || isResizing ? 'none' : 'box-shadow 150ms ease',
+        transition: transform || resizeSide ? 'none' : 'box-shadow 150ms ease',
         overflow: 'hidden',
         boxSizing: 'border-box',
       }}
     >
       {/* Left resize handle */}
-      <PhaseResizeHandle side="left" color={borderColor.startsWith('var') ? '#7C6FE0' : borderColor} onDelta={handleLeftDelta} onEnd={handleLeftEnd} />
+      <div
+        onPointerDown={handleResizePointerDown('left')}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 8,
+          cursor: 'ew-resize',
+          zIndex: 10,
+          background: `${borderColor.startsWith('var') ? '#7C6FE0' : borderColor}55`,
+          borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
+        }}
+      />
 
       {/* Center drag zone */}
       <div
@@ -418,7 +441,20 @@ function SubProjectSpanBar({ sub, left, width, top, pxPerDay, onUpdate, onClick,
       )}
 
       {/* Right resize handle */}
-      <PhaseResizeHandle side="right" color={borderColor.startsWith('var') ? '#7C6FE0' : borderColor} onDelta={handleRightDelta} onEnd={handleRightEnd} />
+      <div
+        onPointerDown={handleResizePointerDown('right')}
+        style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 8,
+          cursor: 'ew-resize',
+          zIndex: 10,
+          background: `${borderColor.startsWith('var') ? '#7C6FE0' : borderColor}55`,
+          borderRadius: '0 var(--radius-md) var(--radius-md) 0',
+        }}
+      />
 
       {/* Date tooltip during drag */}
       {tooltipText && (
