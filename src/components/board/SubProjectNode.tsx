@@ -25,7 +25,7 @@ export type SubProjectNodeData = {
   due_date: string | null
   tasks: DBSubProjectTask[]
   members: BoardMember[]
-  onTaskToggle: (taskId: string, is_complete: boolean) => void
+  onTaskToggle: (taskId: string, is_complete: boolean, proof_url?: string) => void
   onTaskAdd: (title: string) => void
   onTaskDelete: (taskId: string) => void
   onNodeClick: () => void
@@ -34,7 +34,10 @@ export type SubProjectNodeData = {
 export const SubProjectNode = memo(function SubProjectNode({ data, selected }: NodeProps) {
   const d = data as SubProjectNodeData
   const [newTask, setNewTask] = useState('')
+  const [proofTaskId, setProofTaskId] = useState<string | null>(null)
+  const [proofUrl, setProofUrl] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const proofInputRef = useRef<HTMLInputElement>(null)
 
   const completedCount = d.tasks.filter(t => t.is_complete).length
   const totalCount = d.tasks.length
@@ -163,56 +166,158 @@ export const SubProjectNode = memo(function SubProjectNode({ data, selected }: N
           }}
           onMouseDown={e => e.stopPropagation()}
         >
-          {d.tasks.map(task => (
-            <div
-              key={task.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '4px 14px',
-                cursor: 'default',
-              }}
-              onMouseDown={e => e.stopPropagation()}
-            >
-              <input
-                type="checkbox"
-                checked={task.is_complete}
-                onChange={e => { e.stopPropagation(); d.onTaskToggle(task.id, e.target.checked) }}
-                style={{ cursor: 'pointer', accentColor: 'var(--accent)', flexShrink: 0 }}
-              />
-              <span
-                style={{
-                  fontSize: 'var(--text-xs)',
-                  color: task.is_complete ? 'var(--text-tertiary)' : 'var(--text-secondary)',
-                  textDecoration: task.is_complete ? 'line-through' : 'none',
-                  flex: 1,
-                  lineHeight: 1.4,
-                }}
-              >
-                {task.title}
-              </span>
-              <button
-                onClick={e => { e.stopPropagation(); d.onTaskDelete(task.id) }}
-                onMouseDown={e => e.stopPropagation()}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-tertiary)',
-                  padding: '0 2px',
-                  fontSize: 12,
-                  lineHeight: 1,
-                  opacity: 0.6,
-                  transition: 'opacity 150ms ease',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          {d.tasks.map(task => {
+            const taskOwner = task.owner_id ? d.members.find(m => m.id === task.owner_id) : null
+            const showProofInput = proofTaskId === task.id
+            return (
+              <div key={task.id} onMouseDown={e => e.stopPropagation()}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '4px 14px',
+                    cursor: 'default',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={task.is_complete}
+                    onChange={e => {
+                      e.stopPropagation()
+                      if (e.target.checked) {
+                        setProofTaskId(task.id)
+                        setProofUrl('')
+                        setTimeout(() => proofInputRef.current?.focus(), 50)
+                      } else {
+                        d.onTaskToggle(task.id, false)
+                        if (proofTaskId === task.id) setProofTaskId(null)
+                      }
+                    }}
+                    style={{ cursor: 'pointer', accentColor: 'var(--accent)', flexShrink: 0 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 'var(--text-xs)',
+                      color: task.is_complete ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+                      textDecoration: task.is_complete ? 'line-through' : 'none',
+                      flex: 1,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {task.title}
+                  </span>
+                  {task.proof_url && (
+                    <a
+                      href={task.proof_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View proof"
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      style={{ color: 'var(--accent)', fontSize: 11, lineHeight: 1, flexShrink: 0, textDecoration: 'none' }}
+                    >
+                      ↗
+                    </a>
+                  )}
+                  {taskOwner && (
+                    <div
+                      title={taskOwner.display_name}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: taskOwner.avatar_color ?? 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 9,
+                        color: 'white',
+                        fontWeight: 500,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {taskOwner.display_name[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); d.onTaskDelete(task.id) }}
+                    onMouseDown={e => e.stopPropagation()}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-tertiary)',
+                      padding: '0 2px',
+                      fontSize: 12,
+                      lineHeight: 1,
+                      opacity: 0.6,
+                      transition: 'opacity 150ms ease',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
+                  >
+                    ×
+                  </button>
+                </div>
+                {showProofInput && (
+                  <div
+                    style={{ padding: '0 14px 6px 38px', display: 'flex', gap: 6, alignItems: 'center' }}
+                    onMouseDown={e => e.stopPropagation()}
+                  >
+                    <input
+                      ref={proofInputRef}
+                      value={proofUrl}
+                      onChange={e => setProofUrl(e.target.value)}
+                      placeholder="Proof URL (optional)…"
+                      onKeyDown={e => {
+                        e.stopPropagation()
+                        if (e.key === 'Enter') {
+                          d.onTaskToggle(task.id, true, proofUrl.trim() || undefined)
+                          setProofTaskId(null)
+                        }
+                        if (e.key === 'Escape') {
+                          d.onTaskToggle(task.id, true)
+                          setProofTaskId(null)
+                        }
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        flex: 1,
+                        background: 'var(--bg-base)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-secondary)',
+                        fontSize: 'var(--text-xs)',
+                        padding: '3px 6px',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        d.onTaskToggle(task.id, true, proofUrl.trim() || undefined)
+                        setProofTaskId(null)
+                      }}
+                      onMouseDown={e => e.stopPropagation()}
+                      style={{
+                        background: 'var(--accent)',
+                        border: 'none',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'white',
+                        fontSize: 'var(--text-xs)',
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

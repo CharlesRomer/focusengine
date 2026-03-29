@@ -44,6 +44,45 @@ export function useCreateDepartment(projectId: string) {
   })
 }
 
+export function useDeleteDepartment(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Delete child sub-projects first (FK is ON DELETE SET NULL, not CASCADE)
+      const { error: subsErr } = await supabase.from('sub_projects').delete().eq('department_id', id)
+      if (subsErr) {
+        console.error('[useDeleteDepartment] sub-project delete error:', subsErr)
+        toast('Failed to delete category', 'error')
+        throw subsErr
+      }
+      const { error } = await supabase.from('board_departments').delete().eq('id', id)
+      if (error) {
+        console.error('[useDeleteDepartment] error:', error)
+        toast('Failed to delete category', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoard(qc, projectId),
+  })
+}
+
+export function useRenameDepartment(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { error } = await supabase.from('board_departments').update({ name }).eq('id', id)
+      if (error) {
+        console.error('[useRenameDepartment] error:', error)
+        toast('Failed to rename category', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoard(qc, projectId),
+  })
+}
+
 export function useUpdateDepartmentPosition(projectId: string) {
   const qc = useQueryClient()
 
@@ -191,7 +230,7 @@ export function useUpdateTask(projectId: string) {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; title?: string; owner_id?: string | null; is_complete?: boolean }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; title?: string; owner_id?: string | null; is_complete?: boolean; proof_url?: string | null }) => {
       const { error } = await supabase.from('sub_project_tasks').update(updates).eq('id', id)
       if (error) {
         console.error('[useUpdateTask] error:', error)
@@ -328,7 +367,7 @@ export function useUpdateBlocker(projectId: string) {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; title?: string; note?: string | null; is_resolved?: boolean }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; title?: string; note?: string | null; is_resolved?: boolean; resolved_at?: string | null }) => {
       const { error } = await supabase.from('board_blockers').update(updates).eq('id', id)
       if (error) {
         console.error('[useUpdateBlocker] error:', error)

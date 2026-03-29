@@ -31,7 +31,7 @@ export const DepartmentNode = memo(function DepartmentNode({ data, selected }: N
         style={{ background: 'var(--accent)', width: 8, height: 8, border: '2px solid var(--bg-surface)' }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: d.taskCount > 0 ? 8 : 0 }}>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>DEPT</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>CAT</span>
         <span style={{ color: 'var(--text-primary)', fontSize: 'var(--text-sm)', fontWeight: 500, flex: 1 }}>
           {d.name}
         </span>

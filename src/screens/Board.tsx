@@ -12,6 +12,7 @@ import {
   type Edge,
   type Connection,
   type NodeTypes,
+  type EdgeTypes,
   type OnNodeDrag,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -21,6 +22,8 @@ import { useBoardData } from '@/hooks/useBoardData'
 import { useBoardRealtime } from '@/hooks/useBoardRealtime'
 import {
   useCreateDepartment,
+  useDeleteDepartment,
+  useRenameDepartment,
   useUpdateDepartmentPosition,
   useCreateSubProject,
   useUpdateSubProject,
@@ -41,10 +44,12 @@ import { ProjectTitleNode, type ProjectTitleNodeData } from '@/components/board/
 import { DepartmentNode, type DepartmentNodeData } from '@/components/board/DepartmentNode'
 import { SubProjectNode, type SubProjectNodeData } from '@/components/board/SubProjectNode'
 import { BlockerNode, type BlockerNodeData } from '@/components/board/BlockerNode'
+import { DeleteableEdge, type DeleteableEdgeData } from '@/components/board/DeleteableEdge'
 import { SubProjectPanel } from '@/components/board/SubProjectPanel'
 
 import type { DBProject, DBBoardEdge, SubProjectWithTasks, BoardMember } from '@/lib/board'
 import { toast } from '@/store/ui'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 // ── Node type registry ────────────────────────────────────────────────────────
 
@@ -53,6 +58,10 @@ const nodeTypes: NodeTypes = {
   'department': DepartmentNode,
   'sub-project': SubProjectNode,
   'blocker': BlockerNode,
+}
+
+const edgeTypes: EdgeTypes = {
+  'deleteable': DeleteableEdge,
 }
 
 // ── Context menu ──────────────────────────────────────────────────────────────
@@ -221,6 +230,90 @@ function NameModal({ title, placeholder, onClose, onSubmit }: { title: string; p
   )
 }
 
+// ── Confirm delete modal ──────────────────────────────────────────────────────
+
+function ConfirmModal({ message, onConfirm, onClose }: { message: string; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', padding: 24, width: 340, boxShadow: 'var(--shadow-lg)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 20, lineHeight: 1.5 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onConfirm}
+            style={{ flex: 1, background: 'var(--danger)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--text-sm)', padding: '8px', cursor: 'pointer' }}
+          >
+            Delete
+          </button>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', padding: '8px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Rename modal ──────────────────────────────────────────────────────────────
+
+function RenameModal({ initialValue, title, onClose, onSubmit }: { initialValue: string; title: string; onClose: () => void; onSubmit: (name: string) => void }) {
+  const [value, setValue] = useState(initialValue)
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', padding: 20, width: 320, boxShadow: 'var(--shadow-lg)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 10 }}>{title}</p>
+        <input
+          autoFocus
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSubmit(value.trim()); if (e.key === 'Escape') onClose() }}
+          style={{
+            width: '100%',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-primary)',
+            fontSize: 'var(--text-sm)',
+            padding: '8px 10px',
+            outline: 'none',
+            boxSizing: 'border-box',
+            marginBottom: 12,
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => { if (value.trim()) onSubmit(value.trim()) }}
+            disabled={!value.trim()}
+            style={{ flex: 1, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--text-sm)', padding: '7px', cursor: 'pointer', opacity: value.trim() ? 1 : 0.5 }}
+          >
+            Save
+          </button>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', padding: '7px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Canvas helpers ────────────────────────────────────────────────────────────
 
 // Build React Flow nodes from board data
@@ -228,11 +321,13 @@ function buildNodes(
   project: DBProject,
   data: ReturnType<typeof useBoardData>['data'],
   callbacks: {
-    onTaskToggle: (subId: string, taskId: string, val: boolean) => void
+    onTaskToggle: (subId: string, taskId: string, val: boolean, proof_url?: string) => void
     onTaskAdd: (subId: string, title: string) => void
     onTaskDelete: (taskId: string) => void
     onNodeClick: (subId: string) => void
     onBlockerResolve: (blockerId: string) => void
+    onBlockerUnresolve: (blockerId: string) => void
+    onBlockerNoteChange: (blockerId: string, note: string) => void
   }
 ): Node[] {
   if (!data) return []
@@ -292,7 +387,7 @@ function buildNodes(
         due_date: sp.due_date,
         tasks: sp.tasks,
         members: data.members,
-        onTaskToggle: (taskId: string, val: boolean) => callbacks.onTaskToggle(sp.id, taskId, val),
+        onTaskToggle: (taskId: string, val: boolean, proof_url?: string) => callbacks.onTaskToggle(sp.id, taskId, val, proof_url),
         onTaskAdd: (title: string) => callbacks.onTaskAdd(sp.id, title),
         onTaskDelete: callbacks.onTaskDelete,
         onNodeClick: () => callbacks.onNodeClick(sp.id),
@@ -310,7 +405,10 @@ function buildNodes(
         title: blocker.title,
         note: blocker.note,
         is_resolved: blocker.is_resolved,
+        resolved_at: blocker.resolved_at,
         onResolve: () => callbacks.onBlockerResolve(blocker.id),
+        onUnresolve: () => callbacks.onBlockerUnresolve(blocker.id),
+        onNoteChange: (note: string) => callbacks.onBlockerNoteChange(blocker.id, note),
       } as BlockerNodeData,
     })
   }
@@ -319,13 +417,14 @@ function buildNodes(
 }
 
 // Build React Flow edges from DB edges
-function buildEdges(dbEdges: DBBoardEdge[] | undefined): Edge[] {
+function buildEdges(dbEdges: DBBoardEdge[] | undefined, onDelete: (id: string) => void): Edge[] {
   if (!dbEdges) return []
   return dbEdges.map(e => ({
     id: e.id,
     source: e.source_id,
     target: e.target_id,
-    type: 'smoothstep',
+    type: 'deleteable',
+    data: { onDelete } as DeleteableEdgeData,
     style: {
       stroke: e.target_type === 'blocker' ? 'var(--danger)' : 'var(--accent)',
       strokeWidth: 1.5,
@@ -349,6 +448,8 @@ export function BoardScreen() {
   const [pendingPosition, setPendingPosition] = useState<{ x: number; y: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
   const [selectedSubProjectId, setSelectedSubProjectId] = useState<string | null>(null)
+  const [confirmDeleteDept, setConfirmDeleteDept] = useState<{ id: string; name: string } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string; type: 'department' | 'blocker' } | null>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
@@ -366,6 +467,8 @@ export function BoardScreen() {
   const updateViewport = useUpdateProjectViewport()
 
   const createDept = useCreateDepartment(selectedProjectId ?? '')
+  const deleteDept = useDeleteDepartment(selectedProjectId ?? '')
+  const renameDept = useRenameDepartment(selectedProjectId ?? '')
   const updateDeptPos = useUpdateDepartmentPosition(selectedProjectId ?? '')
   const createSub = useCreateSubProject(selectedProjectId ?? '')
   const updateSub = useUpdateSubProject(selectedProjectId ?? '')
@@ -393,8 +496,8 @@ export function BoardScreen() {
   )
 
   // Callbacks for node interactions
-  const handleTaskToggle = useCallback((subId: string, taskId: string, val: boolean) => {
-    updateTask.mutate({ id: taskId, is_complete: val })
+  const handleTaskToggle = useCallback((subId: string, taskId: string, val: boolean, proof_url?: string) => {
+    updateTask.mutate({ id: taskId, is_complete: val, ...(proof_url ? { proof_url } : {}) })
   }, [updateTask])
 
   const handleTaskAdd = useCallback((subId: string, title: string) => {
@@ -407,12 +510,26 @@ export function BoardScreen() {
   }, [deleteTask])
 
   const handleBlockerResolve = useCallback((blockerId: string) => {
-    updateBlocker.mutate({ id: blockerId, is_resolved: true })
+    updateBlocker.mutate({ id: blockerId, is_resolved: true, resolved_at: new Date().toISOString() })
+  }, [updateBlocker])
+
+  const handleBlockerUnresolve = useCallback((blockerId: string) => {
+    updateBlocker.mutate({ id: blockerId, is_resolved: false, resolved_at: null })
+  }, [updateBlocker])
+
+  const handleBlockerNoteChange = useCallback((blockerId: string, note: string) => {
+    updateBlocker.mutate({ id: blockerId, note: note || null })
   }, [updateBlocker])
 
   const handleNodeClick = useCallback((subId: string) => {
     setSelectedSubProjectId(subId)
   }, [])
+
+  // Handle edge deletion from the floating X button on the custom edge
+  const handleEdgeDelete = useCallback((edgeId: string) => {
+    deleteEdge.mutate(edgeId)
+    setEdges(eds => eds.filter(e => e.id !== edgeId))
+  }, [deleteEdge, setEdges])
 
   // Sync board data → React Flow nodes/edges
   useEffect(() => {
@@ -428,9 +545,11 @@ export function BoardScreen() {
       onTaskDelete: handleTaskDelete,
       onNodeClick: handleNodeClick,
       onBlockerResolve: handleBlockerResolve,
+      onBlockerUnresolve: handleBlockerUnresolve,
+      onBlockerNoteChange: handleBlockerNoteChange,
     })
 
-    const newEdges = buildEdges(boardData.edges)
+    const newEdges = buildEdges(boardData.edges, handleEdgeDelete)
 
     setNodes(newNodes)
     setEdges(newEdges)
@@ -460,7 +579,7 @@ export function BoardScreen() {
     setEdges(eds => addEdge(connection, eds))
   }, [nodes, createEdge, setEdges])
 
-  // Handle edge deletion
+  // Handle edge deletion (keyboard Delete/Backspace on selected edge)
   const onEdgesDelete = useCallback((deleted: Edge[]) => {
     for (const edge of deleted) {
       deleteEdge.mutate(edge.id)
@@ -583,6 +702,12 @@ export function BoardScreen() {
       case 'edit-node':
         if (contextMenu.nodeType === 'sub-project') {
           setSelectedSubProjectId(contextMenu.nodeId ?? null)
+        } else if (contextMenu.nodeType === 'department' && contextMenu.nodeId) {
+          const dept = boardData?.departments.find(d => d.id === contextMenu.nodeId)
+          if (dept) setRenameTarget({ id: dept.id, name: dept.name, type: 'department' })
+        } else if (contextMenu.nodeType === 'blocker' && contextMenu.nodeId) {
+          const blocker = boardData?.blockers.find(b => b.id === contextMenu.nodeId)
+          if (blocker) setRenameTarget({ id: blocker.id, name: blocker.title, type: 'blocker' })
         }
         break
       case 'delete-node':
@@ -592,7 +717,8 @@ export function BoardScreen() {
           } else if (contextMenu.nodeType === 'blocker') {
             deleteBlocker.mutate(contextMenu.nodeId)
           } else if (contextMenu.nodeType === 'department') {
-            toast('Delete departments via the toolbar', 'info')
+            const dept = boardData?.departments.find(d => d.id === contextMenu.nodeId)
+            if (dept) setConfirmDeleteDept({ id: dept.id, name: dept.name })
           }
         }
         break
@@ -604,6 +730,20 @@ export function BoardScreen() {
     }
     setContextMenu(null)
   }
+
+  // ── Keyboard Delete on selected nodes ─────────────────────────────────────
+  const onNodesDelete = useCallback((deleted: Node[]) => {
+    for (const node of deleted) {
+      if (node.type === 'sub-project') {
+        deleteSub.mutate(node.id)
+      } else if (node.type === 'blocker') {
+        deleteBlocker.mutate(node.id)
+      } else if (node.type === 'department') {
+        const dept = boardData?.departments.find(d => d.id === node.id)
+        if (dept) setConfirmDeleteDept({ id: dept.id, name: dept.name })
+      }
+    }
+  }, [deleteSub, deleteBlocker, boardData])
 
   // ── Sub-project panel actions ─────────────────────────────────────────────
   const handleSubProjectUpdate = useCallback((updates: {
@@ -678,7 +818,14 @@ export function BoardScreen() {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {projectsLoading && (
-            <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)', padding: '10px 16px' }}>Loading…</p>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[100, 80, 90].map((w, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                  <Skeleton width={8} height={8} className="rounded-full" />
+                  <Skeleton height={14} width={`${w}%`} />
+                </div>
+              ))}
+            </div>
           )}
           {!projectsLoading && (!projects || projects.length === 0) && (
             <div style={{ padding: '20px 16px', textAlign: 'center' }}>
@@ -785,7 +932,7 @@ export function BoardScreen() {
               onClick={() => { setPendingPosition(null); setShowNameModal('department') }}
               style={toolbarButtonStyle}
             >
-              + Department
+              + Category
             </button>
             <button
               onClick={() => { setPendingPosition(null); setShowNameModal('sub-project') }}
@@ -814,11 +961,20 @@ export function BoardScreen() {
             </button>
           </div>
         ) : boardLoading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>Loading board…</p>
+          <div style={{ flex: 1, padding: 32, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'flex', gap: 20 }}>
+              {[280, 280, 220].map((w, i) => (
+                <Skeleton key={i} width={w} height={120} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 20, marginLeft: 60 }}>
+              {[280, 280].map((w, i) => (
+                <Skeleton key={i} width={w} height={160} />
+              ))}
+            </div>
           </div>
         ) : (
-          <div ref={reactFlowRef} style={{ flex: 1, position: 'relative' }}>
+          <div ref={reactFlowRef} className="board-canvas" style={{ flex: 1, position: 'relative' }}>
             {/* Canvas empty state (shown when project has no nodes) */}
             {nodes.filter(n => n.type !== 'project-title').length === 0 && (
               <div
@@ -833,7 +989,7 @@ export function BoardScreen() {
                 }}
               >
                 <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 4 }}>
-                  Start by adding a department or sub-project →
+                  Start by adding a category or sub-project →
                 </p>
                 <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}>
                   Use the toolbar above or right-click on the canvas
@@ -848,15 +1004,17 @@ export function BoardScreen() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onEdgesDelete={onEdgesDelete}
+              onNodesDelete={onNodesDelete}
               onNodeDragStop={onNodeDragStop}
               onMoveEnd={onMoveEnd}
               onPaneContextMenu={onPaneContextMenu}
               onNodeContextMenu={onNodeContextMenu}
               onPaneClick={dismissContextMenu}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               defaultViewport={selectedProject?.canvas_viewport ?? { x: 50, y: 80, zoom: 1 }}
               fitViewOptions={{ padding: 0.1 }}
-              deleteKeyCode="Delete"
+              deleteKeyCode={['Delete', 'Backspace']}
               style={{ background: 'var(--bg-base)' }}
             >
               <Background
@@ -947,7 +1105,7 @@ export function BoardScreen() {
 
       {showNameModal === 'department' && (
         <NameModal
-          title="Add department"
+          title="Add category"
           placeholder="e.g. Marketing, Product, Design…"
           onClose={() => { setShowNameModal(null); setPendingPosition(null) }}
           onSubmit={handleAddDepartment}
@@ -969,6 +1127,35 @@ export function BoardScreen() {
           placeholder="Describe the blocker…"
           onClose={() => { setShowNameModal(null); setPendingPosition(null) }}
           onSubmit={handleAddBlocker}
+        />
+      )}
+
+      {/* Confirm delete category */}
+      {confirmDeleteDept && (
+        <ConfirmModal
+          message={`Delete category "${confirmDeleteDept.name}"? This will also delete all sub-projects inside it.`}
+          onClose={() => setConfirmDeleteDept(null)}
+          onConfirm={() => {
+            deleteDept.mutate(confirmDeleteDept.id)
+            setConfirmDeleteDept(null)
+          }}
+        />
+      )}
+
+      {/* Rename category / blocker */}
+      {renameTarget && (
+        <RenameModal
+          title={renameTarget.type === 'department' ? 'Rename category' : 'Rename blocker'}
+          initialValue={renameTarget.name}
+          onClose={() => setRenameTarget(null)}
+          onSubmit={name => {
+            if (renameTarget.type === 'department') {
+              renameDept.mutate({ id: renameTarget.id, name })
+            } else {
+              updateBlocker.mutate({ id: renameTarget.id, title: name })
+            }
+            setRenameTarget(null)
+          }}
         />
       )}
     </div>

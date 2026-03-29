@@ -328,3 +328,49 @@ button, input, textarea, select {
 .commitment-done-pop {
   animation: commitment-pop 0.4s ease-out forwards;
 }
+
+/* ── Board canvas — React Flow dark theme overrides ───────────────────────── */
+
+/* Controls buttons */
+.board-canvas .react-flow__controls {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.board-canvas .react-flow__controls-button {
+  background: var(--bg-surface);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  fill: var(--text-secondary);
+}
+.board-canvas .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+.board-canvas .react-flow__controls-button:hover {
+  background: var(--bg-hover);
+}
+.board-canvas .react-flow__controls-button svg {
+  fill: var(--text-secondary);
+}
+
+/* MiniMap */
+.board-canvas .react-flow__minimap {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.board-canvas .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+/* Edge selection highlight */
+.board-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent);
+}
+
+/* Attribution */
+.board-canvas .react-flow__attribution {
+  display: none;
+}

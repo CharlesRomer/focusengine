@@ -45,6 +45,7 @@ export type DBSubProjectTask = {
   owner_id: string | null
   is_complete: boolean
   sort_order: number
+  proof_url: string | null
   notion_page_id: string | null
   notion_synced_at: string | null
   created_at: string
@@ -69,6 +70,7 @@ export type DBBoardBlocker = {
   title: string
   note: string | null
   is_resolved: boolean
+  resolved_at: string | null
   position_x: number
   position_y: number
   created_at: string
