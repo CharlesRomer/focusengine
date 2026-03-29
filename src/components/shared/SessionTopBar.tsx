@@ -286,32 +286,41 @@ function EndSessionModal({
     }
     setLoadingRows(true)
 
-    const [events, defaults] = await Promise.all([
-      fetchSessionEvents(session),
-      userId ? fetchUserDefaults(userId) : Promise.resolve(new Map<string, 'focused' | 'distraction'>()),
-    ])
+    try {
+      const [events, defaults] = await Promise.all([
+        fetchSessionEvents(session),
+        userId ? fetchUserDefaults(userId) : Promise.resolve(new Map<string, 'focused' | 'distraction'>()),
+      ])
 
-    const grouped = groupEventsToRows(events)
-    const initialChoices = new Map<string, 'focused' | 'distraction'>()
-    const usualSet = new Set<string>()
-    let anyPrefilled = false
+      const grouped = groupEventsToRows(events)
+      const initialChoices = new Map<string, 'focused' | 'distraction'>()
+      const usualSet = new Set<string>()
+      let anyPrefilled = false
 
-    for (const row of grouped) {
-      const { choice, source } = preFill(row, defaults)
-      if (choice) {
-        initialChoices.set(row.key, choice)
-        anyPrefilled = true
-        if (source === 'usual') usualSet.add(row.key)
+      for (const row of grouped) {
+        const { choice, source } = preFill(row, defaults)
+        if (choice) {
+          initialChoices.set(row.key, choice)
+          anyPrefilled = true
+          if (source === 'usual') usualSet.add(row.key)
+        }
       }
-    }
 
-    setRows(grouped)
-    setUserDefaults(defaults)
-    setUsualSources(usualSet)
-    setChoices(initialChoices)
-    setHasPrefill(anyPrefilled)
-    setLoadingRows(false)
-    setStep('classify')
+      setRows(grouped)
+      setUserDefaults(defaults)
+      setUsualSources(usualSet)
+      setChoices(initialChoices)
+      setHasPrefill(anyPrefilled)
+      setStep('classify')
+    } catch (err) {
+      console.error('[EndSession] Failed to load activity data:', err)
+      toast('Could not load activity data — you can still end the session', 'error')
+      // Still advance to classify so user can end the session
+      setRows([])
+      setStep('classify')
+    } finally {
+      setLoadingRows(false)
+    }
   }
 
   // ── Skip classification ───────────────────────────────────────
@@ -543,8 +552,13 @@ function EndSessionModal({
             )}
 
             {rows.length === 0 ? (
-              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                No app activity recorded for this session
+              <div style={{ padding: '24px 0', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  No activity recorded for this session
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                  Make sure CompassTracker is running in your menu bar
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, maxHeight: 320, overflowY: 'auto' }}>
@@ -608,32 +622,53 @@ function EndSessionModal({
               </div>
             )}
 
-            {/* Skip link */}
-            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            {rows.length === 0 ? (
+              /* No events — show a single clear End session button */
               <button
                 onClick={handleSkip}
                 disabled={saving}
-                style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text-tertiary)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                style={{
+                  display: 'block', width: '100%', padding: '12px',
+                  background: saving ? 'var(--bg-hover)' : 'var(--accent)',
+                  border: 'none', borderRadius: 8,
+                  color: saving ? 'var(--text-tertiary)' : 'white',
+                  fontSize: 14, fontWeight: 600,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--font-sans)', transition: 'all 150ms',
+                }}
               >
-                Skip classification (use estimated score)
+                {saving ? '...' : 'End session'}
               </button>
-            </div>
+            ) : (
+              <>
+                {/* Skip link */}
+                <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                  <button
+                    onClick={handleSkip}
+                    disabled={saving}
+                    style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text-tertiary)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                  >
+                    Skip classification (use estimated score)
+                  </button>
+                </div>
 
-            {/* Calculate button */}
-            <button
-              onClick={handleCalculate}
-              disabled={!anyChoice || saving}
-              style={{
-                display: 'block', width: '100%', padding: '12px',
-                background: anyChoice && !saving ? 'var(--accent)' : 'var(--bg-hover)',
-                border: 'none', borderRadius: 8,
-                color: anyChoice && !saving ? 'white' : 'var(--text-tertiary)',
-                fontSize: 14, fontWeight: 600, cursor: anyChoice && !saving ? 'pointer' : 'not-allowed',
-                fontFamily: 'var(--font-sans)', transition: 'all 150ms',
-              }}
-            >
-              {saving ? '...' : 'Calculate my score →'}
-            </button>
+                {/* Calculate button */}
+                <button
+                  onClick={handleCalculate}
+                  disabled={!anyChoice || saving}
+                  style={{
+                    display: 'block', width: '100%', padding: '12px',
+                    background: anyChoice && !saving ? 'var(--accent)' : 'var(--bg-hover)',
+                    border: 'none', borderRadius: 8,
+                    color: anyChoice && !saving ? 'white' : 'var(--text-tertiary)',
+                    fontSize: 14, fontWeight: 600, cursor: anyChoice && !saving ? 'pointer' : 'not-allowed',
+                    fontFamily: 'var(--font-sans)', transition: 'all 150ms',
+                  }}
+                >
+                  {saving ? '...' : 'Calculate my score →'}
+                </button>
+              </>
+            )}
           </>
         )}
 
@@ -780,7 +815,10 @@ export function SessionTopBar() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!session || session.status === 'ended') return null
+  // Keep rendering while the end modal is open even if the session was just
+  // committed as 'ended' — otherwise the DB write triggers a realtime update
+  // that unmounts this component (and the modal) before the reveal step shows.
+  if (!session || (session.status === 'ended' && !showEnd)) return null
 
   const isPaused = session.status === 'paused'
 
