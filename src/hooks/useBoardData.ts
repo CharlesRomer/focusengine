@@ -20,7 +20,7 @@ export function useBoardData(projectId: string | null) {
       ] = await Promise.all([
         supabase.from('board_departments').select('*').eq('project_id', projectId!).order('created_at'),
         supabase.from('sub_projects').select('*').eq('project_id', projectId!).order('created_at'),
-        supabase.from('sub_project_tasks').select('*').eq('project_id', projectId!).order('sort_order'),
+        supabase.from('sub_project_tasks').select('*').eq('team_org_id', user!.team_org_id!).order('sort_order'),
         supabase.from('board_edges').select('*').eq('project_id', projectId!),
         supabase.from('board_blockers').select('*').eq('project_id', projectId!).order('created_at'),
         supabase.from('users').select('id, display_name, avatar_color').eq('team_org_id', user!.team_org_id!),
