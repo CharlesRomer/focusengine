@@ -225,10 +225,8 @@ export function useCreateTask(projectId: string) {
         toast('Failed to add task', 'error')
         throw error
       }
-      // Fire-and-forget Notion sync if user has it connected
-      if ((user as { notion_connected?: boolean })?.notion_connected) {
-        void syncToNotion(id, 'upsert')
-      }
+      // Fire-and-forget Notion sync — function returns 503 if Notion secrets not set
+      void syncToNotion(id, 'upsert')
       return id
     },
     onSuccess: () => invalidateBoard(qc, projectId),
@@ -236,7 +234,6 @@ export function useCreateTask(projectId: string) {
 }
 
 export function useUpdateTask(projectId: string) {
-  const user = useAuthStore(s => s.user)
   const qc = useQueryClient()
 
   return useMutation({
@@ -247,9 +244,7 @@ export function useUpdateTask(projectId: string) {
         toast('Failed to update task', 'error')
         throw error
       }
-      if ((user as { notion_connected?: boolean })?.notion_connected) {
-        void syncToNotion(id, 'upsert')
-      }
+      void syncToNotion(id, 'upsert')
     },
     onSuccess: () => invalidateBoard(qc, projectId),
   })
