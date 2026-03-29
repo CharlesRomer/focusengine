@@ -6,7 +6,22 @@ export type DBProject = {
   status: 'active' | 'archived'
   color: string
   canvas_viewport: { x: number; y: number; zoom: number }
+  start_date: string | null   // YYYY-MM-DD
+  end_date: string | null     // YYYY-MM-DD
   created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export type DBTimelinePhase = {
+  id: string
+  project_id: string
+  team_org_id: string
+  name: string
+  color: string
+  start_date: string   // YYYY-MM-DD
+  end_date: string     // YYYY-MM-DD
+  sort_order: number
   created_at: string
   updated_at: string
 }

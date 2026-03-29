@@ -374,3 +374,8 @@ button, input, textarea, select {
 .board-canvas .react-flow__attribution {
   display: none;
 }
+
+/* ── Timeline scrollbar ───────────────────────────────────────────────────── */
+.timeline-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.timeline-scroll::-webkit-scrollbar-track { background: var(--bg-base); }
+.timeline-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }

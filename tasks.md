@@ -1,6 +1,7 @@
 # Compass — Tasks
 
 ## In Progress
+- [ ] Build Timeline tab inside /board (phases, sub-project chips, drag, zoom, realtime) — IN PROGRESS
 - [ ] Verify proof upload to Supabase Storage works end-to-end
 - [ ] Run migrations 013 + 014 in Supabase SQL Editor (project board + commitment sub_project_id)
 - [ ] Deploy notion-sync edge function (supabase functions deploy notion-sync)

@@ -16,6 +16,15 @@ function invalidateBoard(qc: ReturnType<typeof useQueryClient>, projectId: strin
   qc.invalidateQueries({ queryKey: ['board-data', projectId] })
 }
 
+function invalidateTimeline(qc: ReturnType<typeof useQueryClient>, projectId: string) {
+  qc.invalidateQueries({ queryKey: ['timeline-data', projectId] })
+}
+
+function invalidateBoth(qc: ReturnType<typeof useQueryClient>, projectId: string) {
+  invalidateBoard(qc, projectId)
+  invalidateTimeline(qc, projectId)
+}
+
 // ── Departments ───────────────────────────────────────────────────────────────
 
 export function useCreateDepartment(projectId: string) {
@@ -407,5 +416,124 @@ export function useDeleteBlocker(projectId: string) {
       }
     },
     onSuccess: () => invalidateBoard(qc, projectId),
+  })
+}
+
+// ── Timeline Phases ───────────────────────────────────────────────────────────
+
+export function useCreatePhase(projectId: string) {
+  const user = useAuthStore(s => s.user)
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      name,
+      color,
+      start_date,
+      end_date,
+      sort_order,
+    }: {
+      name: string
+      color: string
+      start_date: string
+      end_date: string
+      sort_order?: number
+    }) => {
+      const id = crypto.randomUUID()
+      const { error } = await supabase.from('timeline_phases').insert({
+        id,
+        project_id: projectId,
+        team_org_id: user!.team_org_id!,
+        name: name.trim(),
+        color,
+        start_date,
+        end_date,
+        sort_order: sort_order ?? 0,
+      })
+      if (error) {
+        console.error('[useCreatePhase] error:', error)
+        toast('Failed to create phase', 'error')
+        throw error
+      }
+      return id
+    },
+    onSuccess: () => invalidateBoth(qc, projectId),
+  })
+}
+
+export function useUpdatePhase(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...updates
+    }: {
+      id: string
+      name?: string
+      color?: string
+      start_date?: string
+      end_date?: string
+    }) => {
+      const { error } = await supabase.from('timeline_phases').update(updates).eq('id', id)
+      if (error) {
+        console.error('[useUpdatePhase] error:', error)
+        toast('Failed to update phase', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoth(qc, projectId),
+  })
+}
+
+export function useDeletePhase(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('timeline_phases').delete().eq('id', id)
+      if (error) {
+        console.error('[useDeletePhase] error:', error)
+        toast('Failed to delete phase', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoth(qc, projectId),
+  })
+}
+
+// ── Project dates ─────────────────────────────────────────────────────────────
+
+export function useUpdateProjectDates(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ start_date, end_date }: { start_date: string; end_date: string }) => {
+      const { error } = await supabase.from('projects').update({ start_date, end_date }).eq('id', projectId)
+      if (error) {
+        console.error('[useUpdateProjectDates] error:', error)
+        toast('Failed to update project dates', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoth(qc, projectId),
+  })
+}
+
+// ── Sub-project due date (timeline chip drag) ─────────────────────────────────
+
+export function useUpdateSubProjectDueDate(projectId: string) {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
+      const { error } = await supabase.from('sub_projects').update({ due_date }).eq('id', id)
+      if (error) {
+        console.error('[useUpdateSubProjectDueDate] error:', error)
+        toast('Failed to update due date', 'error')
+        throw error
+      }
+    },
+    onSuccess: () => invalidateBoth(qc, projectId),
   })
 }

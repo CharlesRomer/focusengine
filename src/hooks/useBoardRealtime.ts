@@ -42,6 +42,14 @@ export function useBoardRealtime(projectId: string | null) {
       }, () => {
         qc.invalidateQueries({ queryKey: ['board-data', projectId] })
       })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'timeline_phases',
+        filter: `project_id=eq.${projectId}`,
+      }, () => {
+        qc.invalidateQueries({ queryKey: ['timeline-data', projectId] })
+      })
       .subscribe()
 
     return () => {

@@ -46,6 +46,7 @@ import { SubProjectNode, type SubProjectNodeData } from '@/components/board/SubP
 import { BlockerNode, type BlockerNodeData } from '@/components/board/BlockerNode'
 import { DeleteableEdge, type DeleteableEdgeData } from '@/components/board/DeleteableEdge'
 import { SubProjectPanel } from '@/components/board/SubProjectPanel'
+import { TimelineView } from '@/components/board/TimelineView'
 
 import type { DBProject, DBBoardEdge, SubProjectWithTasks, BoardMember } from '@/lib/board'
 import { toast } from '@/store/ui'
@@ -442,6 +443,7 @@ function buildEdges(dbEdges: DBBoardEdge[] | undefined, onDelete: (id: string) =
 // ── Main Board screen ─────────────────────────────────────────────────────────
 
 export function BoardScreen() {
+  const [activeTab, setActiveTab] = useState<'board' | 'timeline'>('board')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [showNameModal, setShowNameModal] = useState<'department' | 'sub-project' | 'blocker' | null>(null)
@@ -924,32 +926,64 @@ export function BoardScreen() {
               flexShrink: 0,
             }}
           >
-            <span style={{ color: 'var(--text-primary)', fontSize: 'var(--text-sm)', fontWeight: 500, flex: 1 }}>
+            <span style={{ color: 'var(--text-primary)', fontSize: 'var(--text-sm)', fontWeight: 500 }}>
               {selectedProject.name}
             </span>
 
-            <button
-              onClick={() => { setPendingPosition(null); setShowNameModal('department') }}
-              style={toolbarButtonStyle}
-            >
-              + Category
-            </button>
-            <button
-              onClick={() => { setPendingPosition(null); setShowNameModal('sub-project') }}
-              style={toolbarButtonStyle}
-            >
-              + Sub-project
-            </button>
-            <button
-              onClick={() => { setPendingPosition(null); setShowNameModal('blocker') }}
-              style={{ ...toolbarButtonStyle, color: 'var(--danger)', borderColor: 'rgba(217,92,92,0.3)' }}
-            >
-              + Blocker
-            </button>
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 8 }}>
+              {(['board', 'timeline'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: `2px solid ${activeTab === tab ? 'var(--accent)' : 'transparent'}`,
+                    color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                    fontSize: 'var(--text-xs)',
+                    padding: '4px 10px',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    transition: 'color 150ms ease, border-color 150ms ease',
+                    marginBottom: -1,
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Board-specific toolbar buttons */}
+            {activeTab === 'board' && (
+              <>
+                <button
+                  onClick={() => { setPendingPosition(null); setShowNameModal('department') }}
+                  style={toolbarButtonStyle}
+                >
+                  + Category
+                </button>
+                <button
+                  onClick={() => { setPendingPosition(null); setShowNameModal('sub-project') }}
+                  style={toolbarButtonStyle}
+                >
+                  + Sub-project
+                </button>
+                <button
+                  onClick={() => { setPendingPosition(null); setShowNameModal('blocker') }}
+                  style={{ ...toolbarButtonStyle, color: 'var(--danger)', borderColor: 'rgba(217,92,92,0.3)' }}
+                >
+                  + Blocker
+                </button>
+              </>
+            )}
           </div>
         )}
 
-        {/* Canvas or empty state */}
+        {/* Board tab content — kept mounted (display:none when timeline active) to preserve React Flow state */}
+        <div style={{ flex: 1, display: activeTab === 'board' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
         {!selectedProjectId ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>Select a project or create one to get started.</p>
@@ -1076,6 +1110,22 @@ export function BoardScreen() {
             )}
           </div>
         )}
+        </div>{/* end board tab content */}
+
+        {/* Timeline tab content */}
+        <div style={{ flex: 1, display: activeTab === 'timeline' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+          {!selectedProjectId ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>Select a project to view its timeline.</p>
+            </div>
+          ) : (
+            <TimelineView
+              projectId={selectedProjectId}
+              project={selectedProject}
+              onSubProjectClick={setSelectedSubProjectId}
+            />
+          )}
+        </div>
       </div>
 
       {/* Sub-project detail panel */}
