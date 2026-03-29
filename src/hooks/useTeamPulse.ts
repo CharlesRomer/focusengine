@@ -38,6 +38,7 @@ export interface TeamSession {
   started_at: string
   total_pause_seconds: number
   focus_score: number | null
+  is_unplanned?: boolean
 }
 
 export function useTeamActiveSessions(teamOrgId: string) {
@@ -46,7 +47,7 @@ export function useTeamActiveSessions(teamOrgId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('focus_sessions')
-        .select('id, user_id, name, status, started_at, total_pause_seconds, focus_score')
+        .select('id, user_id, name, status, started_at, total_pause_seconds, focus_score, is_unplanned')
         .eq('team_org_id', teamOrgId)
         .in('status', ['active', 'paused'])
       if (error) throw error

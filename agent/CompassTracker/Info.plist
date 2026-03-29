@@ -9,9 +9,9 @@
 	<key>CFBundleDisplayName</key>
 	<string>Compass Tracker</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>LSMinimumSystemVersion</key>
@@ -20,6 +20,9 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Compass Tracker reads your browser&apos;s active tab URL to track which sites you use.</string>
+	<!-- Required for UNUserNotificationCenter -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Compass Tracker sends reminders to start focus sessions and set daily commitments.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>

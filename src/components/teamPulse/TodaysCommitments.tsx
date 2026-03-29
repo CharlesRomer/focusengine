@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { PulseCommitmentItem } from './PulseCommitmentItem'
 import { avatarColor } from './MemberCard'
 import { useAddCommitment } from '@/hooks/useCommitments'
-import type { TeamMember } from '@/hooks/useTeamPulse'
+import type { TeamMember, TeamSession } from '@/hooks/useTeamPulse'
 import type { DBCommitment } from '@/lib/supabase'
 
 type PulseCommitment = Pick<
@@ -14,11 +14,12 @@ type PulseCommitment = Pick<
 interface Props {
   members: TeamMember[]
   commitments: PulseCommitment[]
+  sessions: TeamSession[]
   currentUserId: string
   loading: boolean
 }
 
-export function TodaysCommitments({ members, commitments, currentUserId, loading }: Props) {
+export function TodaysCommitments({ members, commitments, sessions, currentUserId, loading }: Props) {
   const today = format(new Date(), 'EEEE, MMM d')
 
   const sorted = [...members].sort((a, b) => {
@@ -69,11 +70,15 @@ export function TodaysCommitments({ members, commitments, currentUserId, loading
             const doneCount = nonDeleted.filter((c) => c.status === 'done').length
             const totalCount = nonDeleted.length
 
+            const memberUnplanned = sessions.filter(
+              s => s.user_id === member.id && s.is_unplanned === true
+            )
             return (
               <MemberColumn
                 key={member.id}
                 member={member}
                 commitments={memberCommitments}
+                unplannedSessions={memberUnplanned}
                 isOwn={isOwn}
                 doneCount={doneCount}
                 totalCount={totalCount}
@@ -90,12 +95,14 @@ export function TodaysCommitments({ members, commitments, currentUserId, loading
 function MemberColumn({
   member,
   commitments,
+  unplannedSessions,
   isOwn,
   doneCount,
   totalCount,
 }: {
   member: TeamMember
   commitments: PulseCommitment[]
+  unplannedSessions: TeamSession[]
   isOwn: boolean
   doneCount: number
   totalCount: number
@@ -209,6 +216,13 @@ function MemberColumn({
           }}
         />
       )}
+
+      {/* Unplanned sessions */}
+      {unplannedSessions.map(s => (
+        <div key={s.id} style={{ marginTop: 6, fontSize: 12, color: 'var(--text-tertiary)' }}>
+          ⚡ Working on: {s.name}
+        </div>
+      ))}
     </div>
   )
 }

@@ -45,6 +45,40 @@ function AppRoutes() {
   const [showStartModal, setShowStartModal] = useState(false)
   const [showShortcuts,  setShowShortcuts]  = useState(false)
 
+  // Read URL action on creation (before async user load)
+  const [pendingAction] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('action')
+  )
+
+  // Clean the URL immediately so params don't persist
+  useEffect(() => {
+    if (pendingAction) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Execute URL action once user is available
+  useEffect(() => {
+    if (!user || !pendingAction) return
+    switch (pendingAction) {
+      case 'start-session': {
+        const sess = useSessionStore.getState().activeSession
+        if (sess) {
+          toast('Session already running', 'info')
+        } else {
+          setShowStartModal(true)
+        }
+        break
+      }
+      case 'set-commitments':
+        navigate('/today', { state: { forceGate: true } })
+        break
+      case 'end-of-day':
+        navigate('/today', { state: { showEndOfDay: true } })
+        break
+    }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Restore any in-progress session on mount
   useEffect(() => {
     if (!user) return

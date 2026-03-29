@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 import Sparkle
+import UserNotifications
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private let engine = TrackerEngine.shared
     private var setupWindow: NSWindow?
@@ -18,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // no Dock icon
+
+        // Notification setup
+        UNUserNotificationCenter.current().delegate = self
+        registerNotificationCategories()
+        NotificationManager.shared.requestPermission()
+
         buildStatusBar()
 
         if KeychainHelper.loadConfig() != nil {
@@ -122,6 +129,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    // ── Notification categories ───────────────────────────────────
+
+    private func registerNotificationCategories() {
+        let startSession = UNNotificationAction(
+            identifier: "START_SESSION", title: "Start Session", options: [.foreground])
+        let snooze30 = UNNotificationAction(
+            identifier: "SNOOZE_30", title: "Snooze 30 min", options: [])
+        let setCommitments = UNNotificationAction(
+            identifier: "SET_COMMITMENTS", title: "Set Commitments", options: [.foreground])
+        let closeOut = UNNotificationAction(
+            identifier: "CLOSE_OUT", title: "Close Out", options: [.foreground])
+        let dismiss = UNNotificationAction(
+            identifier: "DISMISS", title: "Dismiss", options: [.destructive])
+
+        let workingCategory = UNNotificationCategory(
+            identifier: "WORKING_WITHOUT_SESSION",
+            actions: [startSession, snooze30], intentIdentifiers: [])
+        let morningCategory = UNNotificationCategory(
+            identifier: "MORNING_CHECKIN",
+            actions: [setCommitments, dismiss], intentIdentifiers: [])
+        let eodCategory = UNNotificationCategory(
+            identifier: "END_OF_DAY",
+            actions: [closeOut, dismiss], intentIdentifiers: [])
+
+        UNUserNotificationCenter.current().setNotificationCategories(
+            [workingCategory, morningCategory, eodCategory])
+    }
+
+    // ── Notification response handler ─────────────────────────────
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler handler: @escaping () -> Void
+    ) {
+        let baseURL = "https://focusengine-one.vercel.app"
+        switch response.actionIdentifier {
+        case "START_SESSION":
+            NSWorkspace.shared.open(URL(string: "\(baseURL)?action=start-session")!)
+        case "SNOOZE_30":
+            NotificationManager.shared.snooze(minutes: 30)
+        case "SET_COMMITMENTS":
+            NSWorkspace.shared.open(URL(string: "\(baseURL)?action=set-commitments")!)
+        case "CLOSE_OUT":
+            NSWorkspace.shared.open(URL(string: "\(baseURL)?action=end-of-day")!)
+        case "DISMISS":
+            break // once-per-day tracking already handled in scheduleMorning/EOD
+        default:
+            // Default tap — open app
+            NSWorkspace.shared.open(URL(string: baseURL)!)
+        }
+        handler()
+    }
+
+    // Foreground notifications: show banner even when app is frontmost
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        handler([.banner, .sound])
     }
 
     // ── Login item ────────────────────────────────────────────────

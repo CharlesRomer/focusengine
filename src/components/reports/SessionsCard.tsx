@@ -66,7 +66,8 @@ export function SessionsCard({ userId, window }: Props) {
                 <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', minWidth: 44, flexShrink: 0 }}>
                   {format(parseISO(s.started_at), 'M/d')}
                 </span>
-                <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {s.is_unplanned && <span title="Unplanned work" style={{ flexShrink: 0 }}>⚡</span>}
                   {s.name}
                 </span>
                 {/* Classification pill */}

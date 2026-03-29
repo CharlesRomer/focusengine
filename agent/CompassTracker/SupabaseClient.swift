@@ -4,7 +4,7 @@ final class SupabaseClient {
     static let shared = SupabaseClient()
 
     private var teamOrgId:       String?           = nil
-    private var activeSessionId: String?           = nil
+    private(set) var activeSessionId: String?           = nil
     private var pending:         [ActivitySession] = []
     private let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -144,5 +144,56 @@ final class SupabaseClient {
         req.setValue(cfg.anonKey,           forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(cfg.anonKey)", forHTTPHeaderField: "Authorization")
         req.setValue(cfg.token,             forHTTPHeaderField: "x-agent-token")
+    }
+
+    // ── Commitment queries for notifications ──────────────────────
+
+    // 5-minute cache so we don't hammer Supabase every 30s
+    private var commitmentCache: (hasAny: Bool, openCount: Int, fetchedAt: Date)?
+
+    /// Checks today's commitments. Calls completion on main thread.
+    /// On network error the completion is NOT called (skip notification safely).
+    func queryCommitmentsForToday(completion: @escaping (_ hasAny: Bool, _ openCount: Int) -> Void) {
+        // Serve from cache if fresh (same day + < 5 min old)
+        if let c = commitmentCache,
+           Calendar.current.isDateInToday(c.fetchedAt),
+           Date().timeIntervalSince(c.fetchedAt) < 300 {
+            completion(c.hasAny, c.openCount)
+            return
+        }
+
+        guard let cfg = KeychainHelper.loadConfig() else { return }
+
+        let today = String(Date().ISO8601Format().prefix(10)) // YYYY-MM-DD
+        var comps = URLComponents(string: "\(cfg.supabaseUrl)/rest/v1/commitments")!
+        comps.queryItems = [
+            URLQueryItem(name: "user_id",    value: "eq.\(cfg.userId)"),
+            URLQueryItem(name: "date",       value: "eq.\(today)"),
+            URLQueryItem(name: "deleted_at", value: "is.null"),
+            URLQueryItem(name: "select",     value: "id,status"),
+        ]
+        var req = URLRequest(url: comps.url!)
+        addAuthHeaders(to: &req, cfg: cfg)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
+            guard error == nil,
+                  let data,
+                  let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+            else { return } // network failure → skip notification, try next tick
+
+            let openCount = arr.filter { ($0["status"] as? String) == "open" }.count
+            let hasAny    = !arr.isEmpty
+
+            DispatchQueue.main.async {
+                self?.commitmentCache = (hasAny, openCount, Date())
+                completion(hasAny, openCount)
+            }
+        }.resume()
+    }
+
+    /// Invalidate commitment cache (call after user sets commitments).
+    func invalidateCommitmentCache() {
+        commitmentCache = nil
     }
 }

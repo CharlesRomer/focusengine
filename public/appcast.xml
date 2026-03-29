@@ -9,15 +9,15 @@
     <language>en</language>
 
     <item>
-      <title>Version 1.1.0</title>
+      <title>Version 1.2.0</title>
       <pubDate>Sat, 28 Mar 2026 12:00:00 +0000</pubDate>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <enclosure
         url="https://focusengine-one.vercel.app/CompassTracker.zip"
-        sparkle:version="2"
-        sparkle:shortVersionString="1.1.0"
-        sparkle:edSignature="a9V2FZLafG4PM9UXnkyE5IjGWyxJFk3yy7IducOeooNHhDBk++doxek6MLX8eXdRtN1PDDo8FGTwJq9ukDO2Aw=="
-        length="1043796"
+        sparkle:version="3"
+        sparkle:shortVersionString="1.2.0"
+        sparkle:edSignature="F+EAB/tEN46CjHnkGshiUsHr2/+NBNaMZN5OcAKKZx6OfRpMO57XfWJo8O6Ng5Ea6h14yUKfwFDRjJiTsvnXCQ=="
+        length="1072590"
         type="application/octet-stream"
       />
     </item>

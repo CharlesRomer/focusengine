@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { useAuthStore } from '@/store/auth'
 import { useSessionStore } from '@/store/session'
-import { supabase, type DBFocusBlock, type DBFocusSession } from '@/lib/supabase'
+import { supabase, type DBFocusBlock, type DBFocusSession, type DBCommitment } from '@/lib/supabase'
 import { toast } from '@/store/ui'
 
 interface Props {
@@ -11,7 +11,6 @@ interface Props {
 }
 
 function fmtTime(t: string) {
-  // t = "HH:MM:SS" or "HH:MM"
   const [h, m] = t.split(':').map(Number)
   const ampm = h >= 12 ? 'pm' : 'am'
   const hh = h % 12 || 12
@@ -22,11 +21,19 @@ export function StartSessionModal({ open, onClose }: Props) {
   const user      = useAuthStore(s => s.user)
   const setActive = useSessionStore(s => s.setActiveSession)
 
-  const [step,        setStep]        = useState<'loading' | 'picker' | 'new'>('loading')
-  const [blocks,      setBlocks]      = useState<DBFocusBlock[]>([])
-  const [selectedId,  setSelectedId]  = useState<string | null>(null)
-  const [name,        setName]        = useState('')
-  const [isStarting,  setIsStarting]  = useState(false)
+  const [step,             setStep]             = useState<'loading' | 'picker' | 'new' | 'plan-check'>('loading')
+  const [blocks,           setBlocks]           = useState<DBFocusBlock[]>([])
+  const [selectedId,       setSelectedId]       = useState<string | null>(null)
+  const [name,             setName]             = useState('')
+  const [isStarting,       setIsStarting]       = useState(false)
+
+  // plan-check step state
+  const [pendingName,          setPendingName]          = useState('')
+  const [pendingBlockId,       setPendingBlockId]       = useState<string | null>(null)
+  const [showCommitPicker,     setShowCommitPicker]     = useState(false)
+  const [todayCommitments,     setTodayCommitments]     = useState<DBCommitment[]>([])
+  const [selectedCommitmentId, setSelectedCommitmentId] = useState<string | null>(null)
+
   const inputRef = useRef<HTMLInputElement>(null)
 
   // On open: fetch today's unlinked focus_blocks
@@ -36,6 +43,10 @@ export function StartSessionModal({ open, onClose }: Props) {
     setSelectedId(null)
     setName('')
     setIsStarting(false)
+    setPendingName('')
+    setPendingBlockId(null)
+    setShowCommitPicker(false)
+    setSelectedCommitmentId(null)
 
     const today = format(new Date(), 'yyyy-MM-dd')
     supabase
@@ -49,38 +60,44 @@ export function StartSessionModal({ open, onClose }: Props) {
       .then(({ data }) => {
         const list = (data ?? []) as DBFocusBlock[]
         setBlocks(list)
-        if (list.length === 0) {
-          setStep('new')
-        } else {
-          setStep('picker')
-        }
+        setStep(list.length === 0 ? 'new' : 'picker')
       })
   }, [open, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus input when step becomes 'new'
   useEffect(() => {
-    if (step === 'new') {
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    if (step === 'new') setTimeout(() => inputRef.current?.focus(), 50)
   }, [step])
 
-  // Escape closes
+  // Escape closes (only on note/picker/new steps — plan-check uses Escape to start-as-planned)
   useEffect(() => {
     if (!open) return
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      if (step === 'plan-check') {
+        // Escape = "Yes, it's planned" implicitly → start with is_unplanned=false
+        void startSession(pendingName, pendingBlockId, false, null)
+      } else {
+        onClose()
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, step, pendingName, pendingBlockId, onClose]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
 
-  async function startSession(sessionName: string, blockId: string | null) {
+  // ── Core session start ─────────────────────────────────────────
+  async function startSession(
+    sessionName: string,
+    blockId: string | null,
+    isUnplanned: boolean,
+    commitmentId: string | null,
+  ) {
     if (!user || isStarting) return
     setIsStarting(true)
 
-    // Check for existing active/paused session
     const { data: existing } = await supabase
       .from('focus_sessions')
       .select('id')
@@ -96,7 +113,6 @@ export function StartSessionModal({ open, onClose }: Props) {
       return
     }
 
-    // Insert session — let Supabase set started_at via DEFAULT now()
     const { data, error } = await supabase
       .from('focus_sessions')
       .insert({
@@ -106,6 +122,7 @@ export function StartSessionModal({ open, onClose }: Props) {
         status:              'active',
         total_pause_seconds: 0,
         share_to_feed:       false,
+        is_unplanned:        isUnplanned,
       })
       .select()
       .single()
@@ -114,40 +131,90 @@ export function StartSessionModal({ open, onClose }: Props) {
 
     const session = data as DBFocusSession
 
-    // Link block to session if one was selected
+    // Link block → session
     if (blockId) {
-      await supabase
-        .from('focus_blocks')
-        .update({ session_id: session.id })
-        .eq('id', blockId)
+      await supabase.from('focus_blocks').update({ session_id: session.id }).eq('id', blockId)
     }
 
-    // Write active_session_id to users table (for macOS agent)
-    await supabase
-      .from('users')
-      .update({ active_session_id: session.id })
-      .eq('id', user.id)
+    // If user picked a commitment in plan-check, create a focus_block linking them
+    if (commitmentId && !blockId) {
+      await supabase.from('focus_blocks').insert({
+        user_id:       user.id,
+        name:          sessionName,
+        date:          format(new Date(), 'yyyy-MM-dd'),
+        start_time:    '00:00',
+        end_time:      '00:00',
+        commitment_id: commitmentId,
+        session_id:    session.id,
+      })
+    }
+
+    await supabase.from('users').update({ active_session_id: session.id }).eq('id', user.id)
 
     setActive(session)
     toast('Session started — stay focused', 'success')
     onClose()
   }
 
+  // ── Entry points from picker/new steps ────────────────────────
   async function handlePickerConfirm() {
     if (!selectedId) return
     const block = blocks.find(b => b.id === selectedId)
     if (!block) return
-    await startSession(block.name, block.id)
+    // Block has commitment_id → planned; no plan-check needed
+    if (block.commitment_id) {
+      await startSession(block.name, block.id, false, null)
+    } else {
+      // Block exists but no commitment — show plan-check
+      setPendingName(block.name)
+      setPendingBlockId(block.id)
+      await loadTodayCommitments()
+      setStep('plan-check')
+    }
   }
 
   async function handleNewConfirm() {
     const trimmed = name.trim()
     if (!trimmed) return
-    await startSession(trimmed, null)
+    setPendingName(trimmed)
+    setPendingBlockId(null)
+    await loadTodayCommitments()
+    setStep('plan-check')
+  }
+
+  async function loadTodayCommitments() {
+    if (!user) return
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const { data } = await supabase
+      .from('commitments')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .eq('status', 'open')
+      .is('deleted_at', null)
+      .order('created_at')
+    setTodayCommitments((data ?? []) as DBCommitment[])
+  }
+
+  // ── plan-check actions ─────────────────────────────────────────
+  async function handlePlanCheckNo() {
+    await startSession(pendingName, pendingBlockId, true, null)
+  }
+
+  async function handlePlanCheckYes() {
+    if (todayCommitments.length === 0) {
+      // No commitments to link — start as planned anyway
+      await startSession(pendingName, pendingBlockId, false, null)
+      return
+    }
+    setShowCommitPicker(true)
+  }
+
+  async function handlePlanCheckWithCommitment() {
+    await startSession(pendingName, pendingBlockId, false, selectedCommitmentId)
   }
 
   // ── Render ──────────────────────────────────────────────────────
-
   return (
     <div
       style={{
@@ -156,7 +223,7 @@ export function StartSessionModal({ open, onClose }: Props) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(0,0,0,0.7)',
       }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget && step !== 'plan-check') onClose() }}
     >
       <div
         style={{
@@ -199,18 +266,11 @@ export function StartSessionModal({ open, onClose }: Props) {
                       padding: '10px 12px',
                       background: selected ? 'var(--accent-subtle)' : 'var(--bg-surface)',
                       border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-default)'}`,
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: 'var(--font-sans)',
-                      transition: 'background 120ms, border-color 120ms',
+                      borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'var(--font-sans)', transition: 'background 120ms, border-color 120ms',
                     }}
-                    onMouseEnter={e => {
-                      if (!selected) e.currentTarget.style.background = 'var(--bg-hover)'
-                    }}
-                    onMouseLeave={e => {
-                      if (!selected) e.currentTarget.style.background = 'var(--bg-surface)'
-                    }}
+                    onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                    onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'var(--bg-surface)' }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                       {block.name}
@@ -226,10 +286,8 @@ export function StartSessionModal({ open, onClose }: Props) {
             <button
               onClick={() => setStep('new')}
               style={{
-                background: 'none', border: 'none',
-                color: 'var(--text-secondary)', fontSize: 12,
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                padding: '2px 0', marginBottom: 20,
+                background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 12,
+                cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: '2px 0', marginBottom: 20,
                 textDecoration: 'underline',
               }}
             >
@@ -239,7 +297,7 @@ export function StartSessionModal({ open, onClose }: Props) {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={onClose} style={cancelBtnStyle}>Cancel</button>
               <button
-                onClick={handlePickerConfirm}
+                onClick={() => void handlePickerConfirm()}
                 disabled={!selectedId || isStarting}
                 style={primaryBtnStyle(!selectedId || isStarting)}
               >
@@ -264,15 +322,9 @@ export function StartSessionModal({ open, onClose }: Props) {
               placeholder="Name this session..."
               style={{
                 display: 'block', width: '100%', boxSizing: 'border-box',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                color: 'var(--text-primary)',
-                fontSize: 13,
-                fontFamily: 'var(--font-sans)',
-                outline: 'none',
-                marginBottom: 20,
+                background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                borderRadius: 8, padding: '10px 12px', color: 'var(--text-primary)',
+                fontSize: 13, fontFamily: 'var(--font-sans)', outline: 'none', marginBottom: 20,
               }}
               onFocus={e => { e.target.style.borderColor = 'var(--border-strong)' }}
               onBlur={e => { e.target.style.borderColor = 'var(--border-default)' }}
@@ -282,12 +334,7 @@ export function StartSessionModal({ open, onClose }: Props) {
               {blocks.length > 0 && (
                 <button
                   onClick={() => setStep('picker')}
-                  style={{
-                    ...cancelBtnStyle,
-                    marginRight: 'auto',
-                    fontSize: 12,
-                    color: 'var(--text-tertiary)',
-                  }}
+                  style={{ ...cancelBtnStyle, marginRight: 'auto', fontSize: 12, color: 'var(--text-tertiary)' }}
                 >
                   ← Back
                 </button>
@@ -298,9 +345,97 @@ export function StartSessionModal({ open, onClose }: Props) {
                 disabled={!name.trim() || isStarting}
                 style={primaryBtnStyle(!name.trim() || isStarting)}
               >
-                {isStarting ? '...' : 'Start'}
+                {isStarting ? '...' : 'Next →'}
               </button>
             </div>
+          </>
+        )}
+
+        {/* Plan-check step */}
+        {step === 'plan-check' && (
+          <>
+            <h2 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+              Is this in your commitments?
+            </h2>
+            <p style={{ margin: '0 0 20px', fontSize: 12, color: 'var(--text-tertiary)' }}>
+              "{pendingName}"
+            </p>
+
+            {!showCommitPicker ? (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                <button
+                  onClick={() => void handlePlanCheckYes()}
+                  disabled={isStarting}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                    color: 'var(--text-secondary)', cursor: isStarting ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Yes, it's planned
+                </button>
+                <button
+                  onClick={() => void handlePlanCheckNo()}
+                  disabled={isStarting}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13,
+                    background: 'none', border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-tertiary)', cursor: isStarting ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {isStarting ? '...' : 'No, this came up ⚡'}
+                </button>
+              </div>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Which commitment is this related to?
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 200, overflowY: 'auto' }}>
+                  {todayCommitments.length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No open commitments today.</p>
+                  ) : todayCommitments.map(c => {
+                    const sel = c.id === selectedCommitmentId
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCommitmentId(c.id)}
+                        style={{
+                          padding: '8px 12px', textAlign: 'left', borderRadius: 8,
+                          background: sel ? 'var(--accent-subtle)' : 'var(--bg-surface)',
+                          border: `1px solid ${sel ? 'var(--accent)' : 'var(--border-default)'}`,
+                          color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
+                          fontFamily: 'var(--font-sans)',
+                        }}
+                      >
+                        {c.text}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setShowCommitPicker(false)}
+                    style={cancelBtnStyle}
+                  >← Back</button>
+                  <button
+                    onClick={() => void handlePlanCheckWithCommitment()}
+                    disabled={isStarting}
+                    style={primaryBtnStyle(isStarting)}
+                  >
+                    {isStarting ? '...' : 'Start session'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {!showCommitPicker && (
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', margin: 0 }}>
+                Press Esc to start without tagging
+              </p>
+            )}
           </>
         )}
       </div>

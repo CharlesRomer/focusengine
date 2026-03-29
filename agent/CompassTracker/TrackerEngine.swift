@@ -18,6 +18,29 @@ final class TrackerEngine: ObservableObject {
 
     private var keepAliveTimer: Timer?
 
+    // ── Work-app tracking for notifications ───────────────────────
+    private let workAppBundles: Set<String> = [
+        "com.microsoft.VSCode", "com.apple.dt.Xcode", "com.figma.Desktop",
+        "notion.id", "com.linear",
+        // JetBrains
+        "com.jetbrains.intellij.ce", "com.jetbrains.intellij",
+        "com.jetbrains.webstorm", "com.jetbrains.pycharm",
+        "com.jetbrains.pycharm.ce", "com.jetbrains.goland",
+        "com.jetbrains.clion", "com.jetbrains.rider", "com.jetbrains.phpstorm",
+        // Browsers
+        "com.google.Chrome", "com.apple.Safari",
+        "org.mozilla.firefox", "com.microsoft.edgemac",
+        "company.thebrowser.Browser", "com.brave.Browser",
+    ]
+    private let excludedBundles: Set<String> = [
+        "com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS",
+        "com.spotify.client", "com.apple.systempreferences",
+        "com.apple.finder", "com.apple.Terminal", "com.googlecode.iterm2",
+    ]
+    private var consecutiveWorkSeconds: Double = 0
+    private var hadNonIdleActivityToday = false
+    private var lastActivityResetDate  = ""
+
     private let browserBundles: Set<String> = [
         "com.google.Chrome",
         "com.apple.Safari",
@@ -43,11 +66,13 @@ final class TrackerEngine: ObservableObject {
             handleAppSwitch(front)
         }
 
-        // Every 30 s: re-check browser tab, check idle state, refresh active session ID
+        // Every 30 s: re-check browser tab, check idle state, refresh active session ID, evaluate notifications
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             self?.checkBrowserTabChange()
             self?.checkIdleState()
             SupabaseClient.shared.fetchActiveSessionId()
+            self?.updateActivityFlag()
+            self?.evaluateNotifications()
         }
 
         isTracking = true
@@ -157,6 +182,85 @@ final class TrackerEngine: ObservableObject {
             endedAt:         Date(),
             durationSeconds: duration
         ))
+    }
+
+    // ── Work-app helpers ──────────────────────────────────────────
+
+    private func isInWorkApp() -> Bool {
+        guard let bundle = currentBundleId, !isIdle else { return false }
+        if excludedBundles.contains(bundle) { return false }
+        return workAppBundles.contains(bundle)
+    }
+
+    private func updateActivityFlag() {
+        let today = String(Date().ISO8601Format().prefix(10))
+        if lastActivityResetDate != today {
+            lastActivityResetDate = today
+            hadNonIdleActivityToday = false
+        }
+        if !isIdle && currentApp != nil {
+            hadNonIdleActivityToday = true
+        }
+    }
+
+    // ── Notification evaluation (runs every 30 s) ─────────────────
+
+    func evaluateNotifications() {
+        let cal          = Calendar.current
+        let now          = Date()
+        let hour         = cal.component(.hour,   from: now)
+        let minute       = cal.component(.minute, from: now)
+        let timeMinutes  = hour * 60 + minute
+
+        // Update consecutive work seconds
+        if isInWorkApp() && SupabaseClient.shared.activeSessionId == nil {
+            consecutiveWorkSeconds += 30
+        } else {
+            consecutiveWorkSeconds = 0
+        }
+
+        // ── Notification A: working without session (8am–7pm) ─────
+        if timeMinutes >= 480 && timeMinutes <= 1140 {
+            if isInWorkApp() && SupabaseClient.shared.activeSessionId == nil {
+                let minutes = Int(consecutiveWorkSeconds / 60)
+                let rounded = (minutes / 5) * 5
+                if rounded >= 15 {
+                    let lastFired = UserDefaults.standard.double(forKey: "compassLastWorkingNotifTime")
+                    if now.timeIntervalSince1970 - lastFired > 3600 {
+                        NotificationManager.shared.scheduleWorkingWithoutSession(minutesWorking: rounded)
+                    }
+                }
+            }
+        }
+
+        // ── Notification B: morning check-in (8:30am–10:00am) ────
+        if timeMinutes >= 510 && timeMinutes <= 600 {
+            guard hadNonIdleActivityToday,
+                  SupabaseClient.shared.activeSessionId == nil,
+                  !NotificationManager.shared.hasNotificationFiredToday(key: "compassMorningCheckInDate"),
+                  !NotificationManager.shared.isSnoozed(),
+                  !NotificationManager.shared.hasReachedDailyLimit()
+            else { return }
+            SupabaseClient.shared.queryCommitmentsForToday { hasAny, _ in
+                if !hasAny {
+                    NotificationManager.shared.scheduleMorningCheckIn()
+                }
+            }
+        }
+
+        // ── Notification C: end of day (5:00pm–6:00pm) ───────────
+        if timeMinutes >= 1020 && timeMinutes <= 1080 {
+            guard hadNonIdleActivityToday,
+                  !NotificationManager.shared.hasNotificationFiredToday(key: "compassEndOfDayDate"),
+                  !NotificationManager.shared.isSnoozed(),
+                  !NotificationManager.shared.hasReachedDailyLimit()
+            else { return }
+            SupabaseClient.shared.queryCommitmentsForToday { _, openCount in
+                if openCount > 0 {
+                    NotificationManager.shared.scheduleEndOfDay(openCommitments: openCount)
+                }
+            }
+        }
     }
 }
 

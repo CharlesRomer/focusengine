@@ -184,6 +184,7 @@ export function TeamPulseScreen() {
         <TodaysCommitments
           members={memberList}
           commitments={todayCommitments ?? []}
+          sessions={sessionList}
           currentUserId={user.id}
           loading={commLoading}
         />

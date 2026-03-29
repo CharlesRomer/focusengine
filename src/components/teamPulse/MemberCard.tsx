@@ -93,6 +93,7 @@ function ContextLine({
   if (status === 'locked_in' && session) {
     return (
       <span>
+        {session.is_unplanned && <span title="Unplanned work">⚡ </span>}
         {session.name} · {formatHuman(elapsed)}
       </span>
     )

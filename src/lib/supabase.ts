@@ -75,6 +75,7 @@ export interface DBFocusSession {
   paused_at: string | null
   ended_at: string | null
   total_pause_seconds: number
+  is_unplanned?: boolean
 }
 
 export interface DBFocusBlock {
