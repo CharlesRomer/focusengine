@@ -6,7 +6,7 @@ interface Props {
   subProject: SubProjectWithTasks | null
   members: BoardMember[]
   onClose: () => void
-  onUpdate: (updates: { name?: string; description?: string | null; owner_id?: string | null; due_date?: string | null; status?: SubProjectWithTasks['status'] }) => void
+  onUpdate: (updates: { name?: string; description?: string | null; owner_id?: string | null; start_date?: string | null; due_date?: string | null; status?: SubProjectWithTasks['status'] }) => void
   onAddTask: (title: string) => void
   onUpdateTask: (taskId: string, updates: { title?: string; owner_id?: string | null; is_complete?: boolean }) => void
   onDeleteTask: (taskId: string) => void
@@ -201,26 +201,50 @@ export function SubProjectPanel({ subProject, members, onClose, onUpdate, onAddT
             </select>
           </div>
 
-          {/* Due date */}
-          <div>
-            <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)', marginBottom: 4 }}>Due date</label>
-            <input
-              type="date"
-              value={subProject.due_date ?? ''}
-              onChange={e => onUpdate({ due_date: e.target.value || null })}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-secondary)',
-                fontSize: 'var(--text-sm)',
-                padding: '7px 10px',
-                outline: 'none',
-                cursor: 'pointer',
-                boxSizing: 'border-box',
-                colorScheme: 'dark',
-              }}
-            />
+          {/* Start date + Due date */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)', marginBottom: 4 }}>Start date</label>
+              <input
+                type="date"
+                value={subProject.start_date ?? ''}
+                onChange={e => onUpdate({ start_date: e.target.value || null })}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 'var(--text-sm)',
+                  padding: '7px 10px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                  colorScheme: 'dark',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)', marginBottom: 4 }}>Due date</label>
+              <input
+                type="date"
+                value={subProject.due_date ?? ''}
+                onChange={e => onUpdate({ due_date: e.target.value || null })}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 'var(--text-sm)',
+                  padding: '7px 10px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                  colorScheme: 'dark',
+                }}
+              />
+            </div>
           </div>
 
           {/* Tasks */}

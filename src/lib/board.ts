@@ -44,6 +44,7 @@ export type DBSubProject = {
   name: string
   description: string | null
   owner_id: string | null
+  start_date: string | null  // YYYY-MM-DD — timeline start
   due_date: string | null
   status: 'not_started' | 'in_progress' | 'blocked' | 'complete'
   position_x: number

@@ -158,6 +158,7 @@ export function useUpdateSubProject(projectId: string) {
       name?: string
       description?: string | null
       owner_id?: string | null
+      start_date?: string | null
       due_date?: string | null
       status?: 'not_started' | 'in_progress' | 'blocked' | 'complete'
     }) => {
@@ -526,8 +527,10 @@ export function useUpdateSubProjectDueDate(projectId: string) {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, due_date }: { id: string; due_date: string | null }) => {
-      const { error } = await supabase.from('sub_projects').update({ due_date }).eq('id', id)
+    mutationFn: async ({ id, due_date, start_date }: { id: string; due_date: string | null; start_date?: string | null }) => {
+      const updates: { due_date: string | null; start_date?: string | null } = { due_date }
+      if (start_date !== undefined) updates.start_date = start_date
+      const { error } = await supabase.from('sub_projects').update(updates).eq('id', id)
       if (error) {
         console.error('[useUpdateSubProjectDueDate] error:', error)
         toast('Failed to update due date', 'error')
