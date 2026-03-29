@@ -1,12 +1,20 @@
 import AppKit
 import SwiftUI
 import ServiceManagement
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let engine = TrackerEngine.shared
     private var setupWindow: NSWindow?
     private var menuRefreshTimer: Timer?
+
+    // Sparkle — must be a stored property (not a local) so it isn't deallocated
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // no Dock icon
@@ -64,6 +72,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(setup)
 
         menu.addItem(.separator())
+
+        let updates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updates.target = self
+        menu.addItem(updates)
+
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit CompassTracker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem.menu = menu
@@ -102,6 +116,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupWindow?.center()
         setupWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // ── Sparkle ───────────────────────────────────────────────────
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     // ── Login item ────────────────────────────────────────────────
